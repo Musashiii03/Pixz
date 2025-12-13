@@ -86,20 +86,44 @@
         <groupId>org.panteleyev</groupId>
         <artifactId>jpackage-maven-plugin</artifactId>
         <version>1.6.5</version>
-        <configuration>
-          <name>WinGallery</name>
-          <appVersion>1.0.0</appVersion>
-          <vendor>WinGallery</vendor>
-          <destination>target/dist</destination>
-          <module>com.example.wingallery/com.example.wingallery.Launcher</module>
-          <runtimeImage>target/app</runtimeImage>
-          <javaOptions>
-            <option>-Dfile.encoding=UTF-8</option>
-          </javaOptions>
-          <winDirChooser>true</winDirChooser>
-          <winMenu>true</winMenu>
-          <winShortcut>true</winShortcut>
-        </configuration>
+        <executions>
+          <execution>
+            <id>msi</id>
+            <configuration>
+              <name>WinGallery</name>
+              <appVersion>1.0.0</appVersion>
+              <vendor>WinGallery</vendor>
+              <destination>target/installer</destination>
+              <type>MSI</type>
+              <module>com.example.wingallery/com.example.wingallery.Launcher</module>
+              <runtimeImage>target/app</runtimeImage>
+              <icon>src/main/resources/com/example/wingallery/icon.png</icon>
+              <javaOptions>
+                <option>-Dfile.encoding=UTF-8</option>
+              </javaOptions>
+              <winDirChooser>true</winDirChooser>
+              <winMenu>true</winMenu>
+              <winShortcut>true</winShortcut>
+              <winMenuGroup>WinGallery</winMenuGroup>
+            </configuration>
+          </execution>
+          <execution>
+            <id>portable</id>
+            <configuration>
+              <name>WinGallery</name>
+              <appVersion>1.0.0</appVersion>
+              <vendor>WinGallery</vendor>
+              <destination>target/portable</destination>
+              <type>APP_IMAGE</type>
+              <module>com.example.wingallery/com.example.wingallery.Launcher</module>
+              <runtimeImage>target/app</runtimeImage>
+              <icon>src/main/resources/com/example/wingallery/icon.png</icon>
+              <javaOptions>
+                <option>-Dfile.encoding=UTF-8</option>
+              </javaOptions>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
