@@ -1,0 +1,211 @@
+.root {
+    -fx-base: #0b0e14;
+    -fx-background: #0b0e14;
+    -fx-control-inner-background: #0b0e14;
+    -fx-control-inner-background-alt: derive(-fx-control-inner-background, -2%);
+    -fx-accent: #e6b450;
+    -fx-focus-color: #e6b450;
+    -fx-faint-focus-color: #e6b45022;
+    -fx-text-fill: #ffffff;
+}
+
+/* Button Styles */
+.button {
+    -fx-text-fill: white;
+    -fx-background-color: -fx-accent;
+    -fx-background-radius: 8;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: derive(-fx-accent, 10%);
+}
+
+.button:pressed {
+    -fx-background-color: derive(-fx-accent, -10%);
+}
+
+/* ScrollPane Styles */
+.scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane > .corner {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical,
+.scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8;
+    -fx-pref-height: 8;
+}
+
+.increment-button,
+.decrement-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-bar:vertical .track,
+.scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 0;
+}
+
+.scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(78, 78, 78, 0.5);
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(78, 78, 78, 0.5);
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar:vertical .thumb:hover,
+.scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: rgba(94, 94, 94, 0.7);
+}
+
+/* ListView Styles */
+.list-view {
+    -fx-background-color: #0a0a0a;
+    -fx-background-insets: 0;
+    -fx-padding: 5;
+}
+
+.list-cell {
+    -fx-background-color: #0a0a0a;
+    -fx-text-fill: #f2f2f2;
+    -fx-padding: 8;
+    -fx-background-radius: 3;
+}
+
+.list-cell:filled:hover {
+    -fx-background-color: #1a1a1a;
+}
+
+.list-cell:filled:selected {
+    -fx-background-color: #0078d7;
+}
+
+.list-cell:filled:selected:hover {
+    -fx-background-color: derive(#0078d7, 10%);
+}
+
+.list-cell:empty {
+    -fx-background-color: transparent;
+}
+
+/* TextField Styles */
+.text-field {
+    -fx-background-color: #2d3142;
+    -fx-text-fill: #ffffff;
+    -fx-prompt-text-fill: #7a7d8a;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+}
+
+.text-field:focused {
+    -fx-border-color: -fx-accent;
+    -fx-border-width: 1;
+}
+
+/* ComboBox Styles */
+.combo-box {
+    -fx-background-color: #2d3142;
+    -fx-background-radius: 6;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: #2d3142;
+    -fx-text-fill: white;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #2d3142;
+    -fx-border-color: #e6b450;
+    -fx-border-width: 1;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: #2d3142;
+    -fx-text-fill: white;
+}
+
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: #3d4152;
+}
+
+.combo-box-popup .list-view .list-cell:selected {
+    -fx-background-color: #e6b450;
+    -fx-text-fill: black;
+}
+
+.combo-box .arrow-button {
+    -fx-background-color: #2d3142;
+    -fx-background-radius: 0 6 6 0;
+}
+
+.combo-box .arrow {
+    -fx-background-color: white;
+}
+
+.combo-box:focused {
+    -fx-border-color: #e6b450;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+}
+
+/* Label Styles */
+.label {
+    -fx-text-fill: #ffffff;
+}
+
+/* Slider Styles */
+.slider .track {
+    -fx-background-color: #4e4e4e;
+}
+
+.slider .thumb {
+    -fx-background-color: -fx-accent;
+}
+
+.slider .thumb:hover {
+    -fx-background-color: derive(-fx-accent, 15%);
+}
+
+/* Tooltip Styles */
+.tooltip {
+    -fx-background-color: #3e3e3e;
+    -fx-text-fill: #f2f2f2;
+    -fx-background-radius: 4;
+    -fx-padding: 5;
+    -fx-font-size: 11px;
+}
+
+/* Media Card Hover Effects */
+.media-card {
+    -fx-background-color: #0a0a0a;
+    -fx-background-radius: 5;
+    -fx-padding: 10;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 5, 0, 0, 2);
+}
+
+.media-card:hover {
+    -fx-background-color: #1a1a1a;
+    -fx-effect: dropshadow(gaussian, rgba(0, 120, 215, 0.6), 10, 0, 0, 3);
+}

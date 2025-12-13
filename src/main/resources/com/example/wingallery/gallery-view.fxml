@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import com.example.wingallery.MasonryPane?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml/1" xmlns="http://javafx.com/javafx/21" fx:controller="com.example.wingallery.GalleryController">
+    <BorderPane fx:id="rootPane" style="-fx-background-color: #0b0e14;">
+    <top>
+        <VBox style="-fx-background-color: #0b0e14; -fx-padding: 20 30 10 30;">
+            <!-- Search Bar -->
+            <TextField fx:id="searchField" promptText="🔍 Search by filename or tag" style="-fx-background-color: #2d3142; -fx-text-fill: #ffffff; -fx-prompt-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-padding: 12; -fx-background-radius: 8; -fx-border-radius: 8;"/>
+            
+            <!-- Breadcrumb and Header -->
+            <VBox spacing="5" style="-fx-padding: 20 0 10 0;">
+                <Label fx:id="breadcrumbLabel" text="All Folders" style="-fx-text-fill: #7a7d8a; -fx-font-size: 13px;"/>
+                <HBox alignment="CENTER_LEFT" spacing="15">
+                    <Label fx:id="folderTitleLabel" text="All Media" style="-fx-text-fill: #ffffff; -fx-font-size: 32px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <!-- Filter Buttons -->
+                    <HBox spacing="8" alignment="CENTER_RIGHT" style="-fx-padding: 5 0 0 0;">
+                        <Button fx:id="allMediaButton" text="All" onAction="#onFilterAll" style="-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                        <Button fx:id="photosButton" text="Photos" onAction="#onFilterPhotos" style="-fx-background-color: #2d3142; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                        <Button fx:id="videosButton" text="Videos" onAction="#onFilterVideos" style="-fx-background-color: #2d3142; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                    </HBox>
+                </HBox>
+                <!-- Folder Filter Buttons -->
+                <HBox fx:id="folderFilterButtons" spacing="8" alignment="CENTER_LEFT" style="-fx-padding: 10 0 0 0;">
+                    <Button fx:id="allFoldersButton" text="All Folders" onAction="#onAllFoldersClick" style="-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                </HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label fx:id="itemCountLabel" text="0 items" style="-fx-text-fill: #7a7d8a; -fx-font-size: 14px;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <!-- Refresh Button -->
+                    <Button fx:id="refreshButton" text="↻" onAction="#onRefreshClick" style="-fx-background-color: #2d3142; -fx-text-fill: white; -fx-font-size: 18px; -fx-padding: 8 12; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                    <!-- Sort Dropdown -->
+                    <Label text="Sort by:" style="-fx-text-fill: #7a7d8a; -fx-font-size: 13px;"/>
+                    <ComboBox fx:id="sortComboBox" style="-fx-background-color: #2d3142; -fx-text-fill: white; -fx-font-size: 13px; -fx-pref-width: 150;"/>
+                </HBox>
+            </VBox>
+        </VBox>
+    </top>
+    <center>
+        <ScrollPane fx:id="galleryScrollPane" fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" style="-fx-background: #0b0e14; -fx-background-color: #0b0e14;">
+            <MasonryPane fx:id="galleryPane" style="-fx-padding: 20 20 30 30; -fx-background-color: #0b0e14;"/>
+        </ScrollPane>
+    </center>
+    </BorderPane>
+    
+    <!-- Auto-hide Sidebar -->
+    <VBox fx:id="sidebar" style="-fx-background-color: #0f1117; -fx-min-width: 280; -fx-max-width: 280; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 20, 0, 5, 0);" translateX="-280" StackPane.alignment="CENTER_LEFT">
+        <padding>
+            <Insets top="20" right="15" bottom="20" left="15"/>
+        </padding>
+        <Label text="Folders" style="-fx-text-fill: #ffffff; -fx-font-size: 18px; -fx-font-weight: bold; -fx-padding: 0 0 15 0;"/>
+        <Button text="+ Add Folder" onAction="#onFolderLocationClick" maxWidth="Infinity" style="-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 13px; -fx-padding: 10; -fx-background-radius: 8; -fx-cursor: hand;"/>
+        <ScrollPane fitToWidth="true" style="-fx-background: transparent; -fx-background-color: transparent; -fx-padding: 15 0 0 0;" VBox.vgrow="ALWAYS">
+            <VBox fx:id="folderList" spacing="8" style="-fx-background-color: transparent;"/>
+        </ScrollPane>
+    </VBox>
+</StackPane>
