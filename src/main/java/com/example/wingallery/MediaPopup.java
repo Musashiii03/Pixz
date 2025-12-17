@@ -4,6 +4,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+
 import javafx.scene.control.Slider;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -29,7 +30,7 @@ public class MediaPopup {
         stage.initOwner(owner);
         stage.setTitle(mediaItem.getName());
 
-        BorderPane root = new BorderPane();
+        StackPane root = new StackPane();
         root.setStyle("-fx-background-color: #000000;");
 
         if (mediaItem.getType() == MediaItem.MediaType.IMAGE) {
@@ -51,7 +52,7 @@ public class MediaPopup {
         stage.setScene(scene);
     }
 
-    private void setupImageViewer(BorderPane root, MediaItem mediaItem) {
+    private void setupImageViewer(StackPane root, MediaItem mediaItem) {
         Image image = new Image(mediaItem.getFile().toURI().toString());
         ImageView imageView = new ImageView(image);
         imageView.setPreserveRatio(true);
@@ -60,33 +61,57 @@ public class MediaPopup {
 
         StackPane imageContainer = new StackPane(imageView);
         imageContainer.setStyle("-fx-padding: 10;");
-        root.setCenter(imageContainer);
+        root.getChildren().add(imageContainer);
+        StackPane.setAlignment(imageContainer, Pos.CENTER);
 
         // Close button
         Button closeButton = new Button("Close");
         closeButton.setOnAction(e -> close());
         HBox buttonBox = new HBox(closeButton);
         buttonBox.setAlignment(Pos.CENTER);
-        buttonBox.setStyle("-fx-padding: 10;");
-        root.setBottom(buttonBox);
+        buttonBox.setStyle("-fx-padding: 10; -fx-background-color: rgba(0,0,0,0.5);");
+        buttonBox.setMaxHeight(50);
+
+        root.getChildren().add(buttonBox);
+        StackPane.setAlignment(buttonBox, Pos.BOTTOM_CENTER);
     }
 
-    private void setupVideoViewer(BorderPane root, MediaItem mediaItem) {
+    private void setupVideoViewer(StackPane root, MediaItem mediaItem) {
         Media media = new Media(mediaItem.getFile().toURI().toString());
         mediaPlayer = new MediaPlayer(media);
         MediaView mediaView = new MediaView(mediaPlayer);
 
         mediaView.setPreserveRatio(true);
-        mediaView.setFitWidth(980);
-        mediaView.setFitHeight(600);
+        // DEBUG: Shrink video to verify if controls are hidden behind it or just not
+        // there
+        mediaView.setFitWidth(200);
+        mediaView.setFitHeight(200);
 
         StackPane videoContainer = new StackPane(mediaView);
         videoContainer.setStyle("-fx-padding: 10;");
-        root.setCenter(videoContainer);
+        root.getChildren().add(videoContainer);
+        StackPane.setAlignment(videoContainer, Pos.CENTER);
+
+        // Click to toggle play/pause
+        videoContainer.setOnMouseClicked(event -> {
+            if (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                mediaPlayer.pause();
+            } else {
+                mediaPlayer.play();
+            }
+        });
 
         // Video controls
         VBox controlsBox = createVideoControls();
-        root.setBottom(controlsBox);
+        root.getChildren().add(controlsBox);
+        StackPane.setAlignment(controlsBox, Pos.BOTTOM_CENTER);
+        controlsBox.toFront();
+
+        // DEBUG: Overlay Test
+        Label overlayTest = new Label("OVERLAY TEST");
+        overlayTest.setStyle("-fx-font-size: 50px; -fx-text-fill: red;");
+        root.getChildren().add(overlayTest);
+        overlayTest.toFront();
 
         // Auto-play
         mediaPlayer.setAutoPlay(true);
@@ -94,36 +119,24 @@ public class MediaPopup {
 
     private VBox createVideoControls() {
         VBox controlsBox = new VBox(10);
-        controlsBox.setStyle("-fx-padding: 10; -fx-background-color: #0a0a0a;");
+        // DEBUG STYLE
+        controlsBox.setStyle(
+                "-fx-padding: 15; -fx-background-color: #00FF00; -fx-background-radius: 10; -fx-border-color: red; -fx-border-width: 5;");
         controlsBox.setAlignment(Pos.CENTER);
-
-        // Playback controls
-        HBox playbackControls = new HBox(10);
-        playbackControls.setAlignment(Pos.CENTER);
-
-        Button playPauseButton = new Button("Play");
-        Button stopButton = new Button("Stop");
-        Label timeLabel = new Label("00:00 / 00:00");
-        timeLabel.setStyle("-fx-text-fill: #f2f2f2;");
-
-        playPauseButton.setOnAction(e -> {
-            if (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
-                mediaPlayer.pause();
-                playPauseButton.setText("Play");
-            } else {
-                mediaPlayer.play();
-                playPauseButton.setText("Pause");
-            }
-        });
-
-        stopButton.setOnAction(e -> {
-            mediaPlayer.stop();
-            playPauseButton.setText("Play");
-        });
+        controlsBox.setMaxWidth(800);
+        controlsBox.setMinHeight(100);
+        StackPane.setMargin(controlsBox, new javafx.geometry.Insets(0, 0, 50, 0));
 
         // Seek slider
         Slider seekSlider = new Slider();
-        seekSlider.setMaxWidth(400);
+        seekSlider.setMaxWidth(Double.MAX_VALUE); // Fill width
+        // HBox.setHgrow only works if parent is HBox. Since parent is VBox, we rely on
+        // setMaxWidth.
+        // But to be safe and cleaner, we can wrap it in an HBox if we wanted, or just
+        // trust setMaxWidth.
+        // Actually, VBox children align center by default here. To stretch, we might
+        // need FillWidth.
+        // By default VBox fills width if not restricted.
         seekSlider.setDisable(true);
 
         // Flag to prevent feedback loop when updating slider from player
@@ -135,27 +148,22 @@ public class MediaPopup {
                 seekSlider.setValue(newTime.toSeconds());
                 isUpdatingFromPlayer[0] = false;
             }
-            updateTimeLabel(timeLabel, newTime, mediaPlayer.getTotalDuration());
         });
 
         mediaPlayer.setOnReady(() -> {
             Duration total = mediaPlayer.getTotalDuration();
             seekSlider.setMax(total.toSeconds());
             seekSlider.setDisable(false);
-            updateTimeLabel(timeLabel, mediaPlayer.getCurrentTime(), total);
         });
 
-        // Handle dynamic duration changes (common in some formats)
+        // Handle dynamic duration changes
         mediaPlayer.totalDurationProperty().addListener((obs, oldDuration, newDuration) -> {
             seekSlider.setMax(newDuration.toSeconds());
-            updateTimeLabel(timeLabel, mediaPlayer.getCurrentTime(), newDuration);
         });
 
         // Ensure slider reaches the end when media finishes
         mediaPlayer.setOnEndOfMedia(() -> {
             seekSlider.setValue(seekSlider.getMax());
-            updateTimeLabel(timeLabel, mediaPlayer.getTotalDuration(), mediaPlayer.getTotalDuration());
-            playPauseButton.setText("Play");
         });
 
         // Handle clicks and programmatic changes
@@ -172,51 +180,9 @@ public class MediaPopup {
             }
         });
 
-        // Volume slider
-        Slider volumeSlider = new Slider(0, 1, 0.5);
-        volumeSlider.setMaxWidth(150);
-        Label volumeLabel = new Label("Volume");
-        volumeLabel.setStyle("-fx-text-fill: #f2f2f2;");
-
-        mediaPlayer.volumeProperty().bind(volumeSlider.valueProperty());
-
-        playbackControls.getChildren().addAll(playPauseButton, stopButton, timeLabel);
-
-        HBox seekBox = new HBox(10, new Label("Seek:"), seekSlider);
-        seekBox.setAlignment(Pos.CENTER);
-        ((Label) seekBox.getChildren().get(0)).setStyle("-fx-text-fill: #f2f2f2;");
-
-        HBox volumeBox = new HBox(10, volumeLabel, volumeSlider);
-        volumeBox.setAlignment(Pos.CENTER);
-
-        // Close button
-        Button closeButton = new Button("Close");
-        closeButton.setOnAction(e -> close());
-
-        controlsBox.getChildren().addAll(playbackControls, seekBox, volumeBox, closeButton);
+        controlsBox.getChildren().add(seekSlider);
 
         return controlsBox;
-    }
-
-    private void updateTimeLabel(Label label, Duration current, Duration total) {
-        if (current != null && total != null) {
-            label.setText(formatDuration(current) + " / " + formatDuration(total));
-        }
-    }
-
-    private String formatDuration(Duration duration) {
-        if (duration == null || duration.isUnknown() || duration.isIndefinite()) {
-            return "--:--";
-        }
-        double totalSeconds = duration.toSeconds();
-        if (totalSeconds >= Integer.MAX_VALUE || totalSeconds < 0 || Double.isNaN(totalSeconds)
-                || Double.isInfinite(totalSeconds)) {
-            return "--:--";
-        }
-        int seconds = (int) totalSeconds;
-        int minutes = seconds / 60;
-        seconds = seconds % 60;
-        return String.format("%02d:%02d", minutes, seconds);
     }
 
     public void show() {

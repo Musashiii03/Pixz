@@ -175,16 +175,35 @@
 }
 
 /* Slider Styles */
+/* Slider Styles */
 .slider .track {
-    -fx-background-color: #4e4e4e;
+    -fx-background-color: #505050;
+    -fx-pref-height: 4px;
+    -fx-background-radius: 2px;
 }
 
 .slider .thumb {
     -fx-background-color: -fx-accent;
+    -fx-pref-width: 12px;
+    -fx-pref-height: 12px;
+    -fx-background-radius: 50%;
 }
 
 .slider .thumb:hover {
-    -fx-background-color: derive(-fx-accent, 15%);
+    -fx-background-color: derive(-fx-accent, 20%);
+    -fx-effect: dropshadow(three-pass-box, rgba(230, 180, 80, 0.4), 5, 0, 0, 0);
+}
+
+.slider:disabled {
+    -fx-opacity: 1.0;
+}
+
+.slider:disabled .track {
+    -fx-background-color: #333333;
+}
+
+.slider:disabled .thumb {
+    -fx-background-color: #666666;
 }
 
 /* Tooltip Styles */

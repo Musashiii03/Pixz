@@ -141,17 +141,17 @@ public class GalleryController {
 
         // Update UI
         updateHeaderInfo();
-        
+
         // Show empty state if no folders
         showEmptyStateIfNeeded();
     }
-    
+
     /**
      * Load folders from previous session
      */
     private void loadPreviousSession() {
         Set<String> savedFolders = SessionManager.loadSession();
-        
+
         if (!savedFolders.isEmpty()) {
             // Load each folder
             for (String folderPath : savedFolders) {
@@ -162,7 +162,7 @@ public class GalleryController {
             }
         }
     }
-    
+
     /**
      * Save current session (called on app close)
      */
@@ -171,37 +171,40 @@ public class GalleryController {
             SessionManager.saveSession(selectedFolders);
         }
     }
-    
+
     private void showEmptyStateIfNeeded() {
         if (mediaItems.isEmpty()) {
             // Create empty state UI centered in viewport
             StackPane emptyStateContainer = new StackPane();
             emptyStateContainer.setStyle("-fx-background-color: #0b0e14;");
-            
+
             VBox emptyState = new VBox(20);
             emptyState.setAlignment(Pos.CENTER);
             emptyState.setStyle("-fx-padding: 40;");
-            
+
             Label emptyIcon = new Label("📁");
             emptyIcon.setStyle("-fx-font-size: 80px;");
-            
+
             Label emptyTitle = new Label("No Folders Added");
             emptyTitle.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 24px; -fx-font-weight: bold;");
-            
+
             Label emptySubtitle = new Label("Add a folder to start viewing your photos and videos");
             emptySubtitle.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px;");
-            
+
             Button addFolderBtn = new Button("+ Add Folder");
-            addFolderBtn.setStyle("-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 16px; -fx-padding: 12 24; -fx-background-radius: 8; -fx-cursor: hand;");
+            addFolderBtn.setStyle(
+                    "-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 16px; -fx-padding: 12 24; -fx-background-radius: 8; -fx-cursor: hand;");
             addFolderBtn.setOnAction(e -> onFolderLocationClick());
-            
+
             // Hover effect
-            addFolderBtn.setOnMouseEntered(e -> addFolderBtn.setStyle("-fx-background-color: #f0c060; -fx-text-fill: black; -fx-font-size: 16px; -fx-padding: 12 24; -fx-background-radius: 8; -fx-cursor: hand;"));
-            addFolderBtn.setOnMouseExited(e -> addFolderBtn.setStyle("-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 16px; -fx-padding: 12 24; -fx-background-radius: 8; -fx-cursor: hand;"));
-            
+            addFolderBtn.setOnMouseEntered(e -> addFolderBtn.setStyle(
+                    "-fx-background-color: #f0c060; -fx-text-fill: black; -fx-font-size: 16px; -fx-padding: 12 24; -fx-background-radius: 8; -fx-cursor: hand;"));
+            addFolderBtn.setOnMouseExited(e -> addFolderBtn.setStyle(
+                    "-fx-background-color: #e6b450; -fx-text-fill: black; -fx-font-size: 16px; -fx-padding: 12 24; -fx-background-radius: 8; -fx-cursor: hand;"));
+
             emptyState.getChildren().addAll(emptyIcon, emptyTitle, emptySubtitle, addFolderBtn);
             emptyStateContainer.getChildren().add(emptyState);
-            
+
             // Replace the center content with empty state
             rootPane.setCenter(emptyStateContainer);
         }
@@ -256,7 +259,7 @@ public class GalleryController {
 
     private void updateHeaderInfo() {
         itemCountLabel.setText(mediaItems.size() + " items");
-        
+
         // Update header based on folder filter
         if (currentFolderFilter != null) {
             // A specific folder is selected
@@ -320,17 +323,17 @@ public class GalleryController {
         for (String folderPath : selectedFolders) {
             foldersToRescan.add(new File(folderPath));
         }
-        
+
         // Clear current media items
         mediaItems.clear();
-        
+
         // Rescan each folder
         for (File folder : foldersToRescan) {
             if (folder.exists()) {
                 scanFolder(folder);
             }
         }
-        
+
         // Refresh the gallery
         refreshGallery();
     }
@@ -367,12 +370,12 @@ public class GalleryController {
             showEmptyStateIfNeeded();
             return;
         }
-        
+
         // Restore gallery view if it was replaced by empty state
         if (!(rootPane.getCenter() instanceof ScrollPane)) {
             rootPane.setCenter(galleryScrollPane);
         }
-        
+
         galleryPane.getChildren().clear();
 
         String searchText = searchField.getText();
@@ -420,31 +423,30 @@ public class GalleryController {
             // Show no results message centered in viewport
             StackPane noResultsContainer = new StackPane();
             noResultsContainer.setStyle("-fx-background-color: #0b0e14;");
-            
+
             VBox noResultsBox = new VBox(20);
             noResultsBox.setAlignment(Pos.CENTER);
             noResultsBox.setStyle("-fx-padding: 40;");
-            
-            String filterType = currentFilter == MediaFilter.PHOTOS ? "photos" : 
-                               currentFilter == MediaFilter.VIDEOS ? "videos" : "items";
-            
-            Label noResultsIcon = new Label(currentFilter == MediaFilter.PHOTOS ? "📷" : 
-                                           currentFilter == MediaFilter.VIDEOS ? "🎬" : "🔍");
+
+            String filterType = currentFilter == MediaFilter.PHOTOS ? "photos"
+                    : currentFilter == MediaFilter.VIDEOS ? "videos" : "items";
+
+            Label noResultsIcon = new Label(
+                    currentFilter == MediaFilter.PHOTOS ? "📷" : currentFilter == MediaFilter.VIDEOS ? "🎬" : "🔍");
             noResultsIcon.setStyle("-fx-font-size: 64px;");
-            
+
             Label noResultsTitle = new Label("No " + filterType + " found");
             noResultsTitle.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 20px; -fx-font-weight: bold;");
-            
+
             Label noResultsSubtitle = new Label(
-                currentFolderFilter != null ? "This folder doesn't contain any " + filterType :
-                searchText != null && !searchText.trim().isEmpty() ? "Try adjusting your search" :
-                "Try selecting a different filter"
-            );
+                    currentFolderFilter != null ? "This folder doesn't contain any " + filterType
+                            : searchText != null && !searchText.trim().isEmpty() ? "Try adjusting your search"
+                                    : "Try selecting a different filter");
             noResultsSubtitle.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px;");
-            
+
             noResultsBox.getChildren().addAll(noResultsIcon, noResultsTitle, noResultsSubtitle);
             noResultsContainer.getChildren().add(noResultsBox);
-            
+
             // Replace center content with no results message
             rootPane.setCenter(noResultsContainer);
         } else {
@@ -452,7 +454,7 @@ public class GalleryController {
             if (!(rootPane.getCenter() instanceof ScrollPane)) {
                 rootPane.setCenter(galleryScrollPane);
             }
-            
+
             for (MediaItem item : filteredItems) {
                 StackPane card = createMediaCard(item);
                 galleryPane.getChildren().add(card);
@@ -881,8 +883,8 @@ public class GalleryController {
             mediaView.setPreserveRatio(true);
             mediaView.setSmooth(true);
 
-            // Enable looping by default
-            currentMediaPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+            // Disable looping by default (changed to 1 cycle)
+            currentMediaPlayer.setCycleCount(1);
 
             // Track if video actually started playing
             final boolean[] hasPlayed = { false };
@@ -989,43 +991,186 @@ public class GalleryController {
                 videoContainer.requestLayout();
             });
 
-            // Rotate button at top-right - always visible
-            Button rotateButton = new Button("↻");
-            rotateButton.setStyle(
-                    "-fx-background-color: rgba(0, 0, 0, 0.7); -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 10 15; -fx-background-radius: 8;");
-            rotateButton.setTooltip(new Tooltip("Rotate 90°"));
+            // Container for controls
+            StackPane videoStack = new StackPane();
+            videoStack.getChildren().add(videoContainer);
 
-            // Rotate button action - rotate only the video, not controls
-            rotateButton.setOnAction(e -> {
+            // --- Control Bar Setup ---
+            HBox controlsBar = new HBox(15);
+            controlsBar.setAlignment(Pos.CENTER_LEFT);
+            controlsBar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-padding: 10 20;");
+            controlsBar.setMaxWidth(Double.MAX_VALUE); // Full width
+            controlsBar.setMinHeight(60);
+            controlsBar.setMaxHeight(60);
+            StackPane.setAlignment(controlsBar, Pos.BOTTOM_CENTER);
+
+            // Styles for buttons
+            String btnStyle = "-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand; -fx-background-radius: 5;";
+            String activeBtnStyle = "-fx-background-color: rgba(255, 255, 255, 0.2); -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand; -fx-background-radius: 5;";
+
+            // 1. Play/Pause Button
+            Button playPauseBtn = new Button("⏸"); // Default to pause symbol as it auto-plays
+            playPauseBtn.setStyle(btnStyle);
+            playPauseBtn.setMinWidth(40);
+
+            Runnable updatePlayBtn = () -> {
+                if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                    playPauseBtn.setText("⏸");
+                } else {
+                    playPauseBtn.setText("▶");
+                }
+            };
+
+            playPauseBtn.setOnAction(e -> {
+                if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                    currentMediaPlayer.pause();
+                } else {
+                    currentMediaPlayer.play();
+                }
+            });
+
+            currentMediaPlayer.statusProperty().addListener((obs, old, newVal) -> updatePlayBtn.run());
+
+            // 2. Seek Slider
+            javafx.scene.control.Slider seekSlider = new javafx.scene.control.Slider();
+            seekSlider.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(seekSlider, Priority.ALWAYS); // Grow to fill space
+            seekSlider.setDisable(true); // Initially disabled
+
+            // Slider Logic
+            final boolean[] isUpdatingFromPlayer = { false };
+
+            currentMediaPlayer.currentTimeProperty().addListener((obs, oldTime, newTime) -> {
+                if (!seekSlider.isValueChanging()) {
+                    isUpdatingFromPlayer[0] = true;
+                    seekSlider.setValue(newTime.toSeconds());
+                    isUpdatingFromPlayer[0] = false;
+                }
+            });
+
+            Runnable onReady = () -> {
+                javafx.util.Duration total = currentMediaPlayer.getTotalDuration();
+                if (total != null && !total.isIndefinite() && !total.isUnknown()) {
+                    seekSlider.setMax(total.toSeconds());
+                    seekSlider.setDisable(false);
+                }
+            };
+
+            if (currentMediaPlayer.getStatus() == MediaPlayer.Status.READY) {
+                onReady.run();
+            } else {
+                currentMediaPlayer.setOnReady(() -> {
+                    onReady.run();
+                    videoContainer.requestLayout();
+                });
+            }
+
+            currentMediaPlayer.totalDurationProperty().addListener((obs, oldD, newD) -> {
+                if (newD != null && !newD.isIndefinite() && !newD.isUnknown()) {
+                    seekSlider.setMax(newD.toSeconds());
+                    seekSlider.setDisable(false);
+                }
+            });
+
+            // Reset at end
+            currentMediaPlayer.setOnEndOfMedia(() -> {
+                seekSlider.setValue(seekSlider.getMax());
+                playPauseBtn.setText("▶"); // Show play button at end
+            });
+
+            seekSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                if (!isUpdatingFromPlayer[0] && !seekSlider.isValueChanging()) {
+                    currentMediaPlayer.seek(javafx.util.Duration.seconds(newVal.doubleValue()));
+                }
+            });
+
+            seekSlider.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
+                if (!isChanging) {
+                    currentMediaPlayer.seek(javafx.util.Duration.seconds(seekSlider.getValue()));
+                }
+            });
+
+            // 3. Loop Button
+            Button loopBtn = new Button("🔁");
+            loopBtn.setTooltip(new Tooltip("Toggle Loop"));
+            loopBtn.setStyle(btnStyle); // Default off
+
+            loopBtn.setOnAction(e -> {
+                if (currentMediaPlayer.getCycleCount() == 1) {
+                    currentMediaPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+                    loopBtn.setStyle(activeBtnStyle); // Visual feedback
+                } else {
+                    currentMediaPlayer.setCycleCount(1);
+                    loopBtn.setStyle(btnStyle);
+                }
+            });
+
+            // 4. Rotate Button
+            Button rotateBtn = new Button("↻");
+            rotateBtn.setTooltip(new Tooltip("Rotate Video"));
+            rotateBtn.setStyle(btnStyle);
+
+            rotateBtn.setOnAction(e -> {
                 double currentRotation = videoContainer.getRotate();
                 double newRotation = currentRotation + 90;
                 videoContainer.setRotate(newRotation);
                 videoContainer.requestLayout();
             });
 
-            // Position rotate button at top-right
-            StackPane buttonContainer = new StackPane(rotateButton);
-            buttonContainer.setAlignment(Pos.TOP_RIGHT);
-            buttonContainer.setStyle("-fx-padding: 20;");
-            buttonContainer.setPickOnBounds(false); // Allow clicks to pass through to video
+            // Add all to bar
+            controlsBar.getChildren().addAll(playPauseBtn, seekSlider, loopBtn, rotateBtn);
 
-            // Use StackPane to overlay button on video
-            StackPane videoStack = new StackPane();
-            videoStack.getChildren().addAll(videoContainer, buttonContainer);
+            // Add bar to stack
+            videoStack.getChildren().add(controlsBar);
 
-            layout.setCenter(videoStack);
-            container.getChildren().add(layout);
+            // --- Auto-Hide Logic ---
+            controlsBar.setOpacity(1.0); // Start visible
 
-            // Click to pause/play
-            videoContainer.setOnMouseClicked(e -> {
-                if (currentMediaPlayer != null) {
-                    if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
-                        currentMediaPlayer.pause();
-                    } else {
-                        currentMediaPlayer.play();
+            javafx.animation.FadeTransition fadeOut = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(500), controlsBar);
+            fadeOut.setFromValue(1.0);
+            fadeOut.setToValue(0.0);
+
+            javafx.animation.FadeTransition fadeIn = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(200), controlsBar);
+            fadeIn.setFromValue(0.0);
+            fadeIn.setToValue(1.0);
+
+            javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.seconds(3));
+            idleTimer.setOnFinished(ev -> fadeOut.play());
+
+            // Reset timer on movement
+            videoStack.setOnMouseMoved(e -> {
+                if (controlsBar.getOpacity() < 1.0) {
+                    fadeIn.play();
+                }
+                controlsBar.setOpacity(1.0); // Ensure visible
+                idleTimer.playFromStart(); // Reset timer
+            });
+
+            // Also show on click
+            videoStack.setOnMouseClicked(e -> {
+                if (controlsBar.getOpacity() < 1.0) {
+                    fadeIn.play();
+                    idleTimer.playFromStart();
+                } else {
+                    // If clicking not on controls, toggle play/pause
+                    if (!controlsBar.contains(controlsBar.sceneToLocal(e.getSceneX(), e.getSceneY()))) {
+                        if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                            currentMediaPlayer.pause();
+                        } else {
+                            currentMediaPlayer.play();
+                        }
                     }
                 }
             });
+
+            // Start timer initially
+            idleTimer.play();
+
+            layout.setCenter(videoStack);
+            container.getChildren().add(layout);
 
             // Auto-play
             currentMediaPlayer.setAutoPlay(true);
@@ -1063,7 +1208,7 @@ public class GalleryController {
             switchToMedia(mediaItems.get(currentMediaIndex));
         }
     }
-    
+
     private void switchToMedia(MediaItem item) {
         // Stop current media player if exists
         if (currentMediaPlayer != null) {
@@ -1071,16 +1216,16 @@ public class GalleryController {
             currentMediaPlayer.dispose();
             currentMediaPlayer = null;
         }
-        
+
         // Clear and rebuild the fullscreen viewer content
         fullscreenViewer.getChildren().clear();
-        
+
         if (item.getType() == MediaItem.MediaType.IMAGE) {
             setupImageViewer(fullscreenViewer, item);
         } else {
             setupVideoViewer(fullscreenViewer, item);
         }
-        
+
         // Ensure focus for keyboard events
         fullscreenViewer.requestFocus();
     }
