@@ -1,17 +1,16 @@
 package com.example.wingallery;
 
+import java.util.List;
+
 import javafx.scene.Node;
 import javafx.scene.layout.Pane;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Custom layout pane that arranges children in a masonry (Pinterest-style) grid
+ * Custom layout pane that arranges children in a uniform grid
  */
 public class MasonryPane extends Pane {
-    private static final double COLUMN_WIDTH = 350;
-    private static final double GAP = 0;
+    private static final double COLUMN_WIDTH = 300; // Larger thumbnails
+    private static final double GAP = 0; // No gap between items
     private int numColumns = 3;
 
     public MasonryPane() {

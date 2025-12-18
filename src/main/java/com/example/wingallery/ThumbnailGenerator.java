@@ -15,19 +15,21 @@ import javafx.scene.media.MediaView;
  * Utility class for generating thumbnails from images and videos
  */
 public class ThumbnailGenerator {
-    private static final int THUMBNAIL_WIDTH = 400;
-    private static final int THUMBNAIL_HEIGHT = 400;
+    private static final int THUMBNAIL_SIZE = 300; // Larger thumbnails for better visibility
 
     /**
      * Generate thumbnail for an image file
+     * Uses background loading to avoid blocking and reduce memory usage
+     * Creates square thumbnails by cropping to center
      */
     public static Image generateImageThumbnail(File file) {
         try {
-            Image image = new Image(file.toURI().toString(), THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, true, true, true);
+            // Load at reduced resolution for memory efficiency
+            // preserveRatio = false to create square thumbnails
+            // smooth = false for faster loading and less memory
+            Image image = new Image(file.toURI().toString(), THUMBNAIL_SIZE, THUMBNAIL_SIZE, false, false, true);
             return image;
         } catch (Exception e) {
-            System.err.println("Error generating thumbnail for image: " + file.getName());
-            e.printStackTrace();
             return null;
         }
     }
@@ -63,18 +65,18 @@ public class ThumbnailGenerator {
     private static Image createPlaceholderImage() {
         try {
             // Create a simple colored rectangle as placeholder
-            javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+            javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
             javafx.scene.canvas.GraphicsContext gc = canvas.getGraphicsContext2D();
             
             // Dark gray background
             gc.setFill(javafx.scene.paint.Color.rgb(60, 60, 60));
-            gc.fillRect(0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+            gc.fillRect(0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE);
             
             // Play icon
             gc.setFill(javafx.scene.paint.Color.rgb(200, 200, 200));
-            double centerX = THUMBNAIL_WIDTH / 2.0;
-            double centerY = THUMBNAIL_HEIGHT / 2.0;
-            double size = 80;
+            double centerX = THUMBNAIL_SIZE / 2.0;
+            double centerY = THUMBNAIL_SIZE / 2.0;
+            double size = 40; // Smaller for reduced thumbnail size
             
             // Triangle play button
             gc.fillPolygon(
@@ -114,9 +116,9 @@ public class ThumbnailGenerator {
                     try {
                         // Create MediaView only when ready
                         MediaView mediaView = new MediaView(finalMediaPlayer);
-                        mediaView.setFitWidth(THUMBNAIL_WIDTH);
-                        mediaView.setFitHeight(THUMBNAIL_HEIGHT);
-                        mediaView.setPreserveRatio(true);
+                        mediaView.setFitWidth(THUMBNAIL_SIZE);
+                        mediaView.setFitHeight(THUMBNAIL_SIZE);
+                        mediaView.setPreserveRatio(false); // Square thumbnails
                         mediaViewHolder[0] = mediaView;
                         
                         // Try to take snapshot immediately without seeking

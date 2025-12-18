@@ -621,6 +621,7 @@ public class GalleryController {
                     MediaItem item = null;
                     if (ThumbnailGenerator.isImageFile(file)) {
                         item = new MediaItem(file, MediaItem.MediaType.IMAGE);
+                        // Generate thumbnail immediately (small size for memory efficiency)
                         Image thumbnail = ThumbnailGenerator.generateImageThumbnail(file);
                         item.setThumbnail(thumbnail);
                         items.add(item);
@@ -629,7 +630,7 @@ public class GalleryController {
                         item = new MediaItem(file, MediaItem.MediaType.VIDEO);
                         items.add(item);
                         mediaFilesInThisFolder++;
-
+                        
                         // Generate video thumbnail asynchronously
                         MediaItem finalItem = item;
                         ThumbnailGenerator.generateVideoThumbnail(file).thenAccept(thumbnail -> {
@@ -660,71 +661,73 @@ public class GalleryController {
         // Find and update the card for this item
         refreshGallery();
     }
+    
+    private void updateCardWithThumbnail(StackPane card, MediaItem item, Image thumbnail) {
+        // Clear placeholder
+        card.getChildren().clear();
+        card.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+        
+        // Add thumbnail - fill the square
+        ImageView thumbnailView = new ImageView(thumbnail);
+        thumbnailView.setPreserveRatio(false); // Fill square
+        thumbnailView.setSmooth(false); // Faster rendering, less memory
+        thumbnailView.setFitWidth(300);
+        thumbnailView.setFitHeight(300);
+        
+        card.getChildren().add(thumbnailView);
+        
+        // Add play icon overlay for videos
+        if (item.getType() == MediaItem.MediaType.VIDEO) {
+            StackPane playIconContainer = new StackPane();
+            playIconContainer.setMaxSize(40, 40);
+            playIconContainer.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-background-radius: 20;");
+            
+            Label playIcon = new Label("▶");
+            playIcon.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 16px;");
+            playIconContainer.getChildren().add(playIcon);
+            
+            card.getChildren().add(playIconContainer);
+        }
+        
+        // Request layout update
+        card.requestLayout();
+    }
 
     private StackPane createMediaCard(MediaItem item) {
-        // Thumbnail card with rounded corners - responsive to column width
-        StackPane card = new StackPane() {
-            @Override
-            protected void layoutChildren() {
-                super.layoutChildren();
-                // Update clip when size changes
-                if (item.getThumbnail() != null && !getChildren().isEmpty()) {
-                    javafx.scene.Node firstChild = getChildren().get(0);
-                    if (firstChild instanceof ImageView) {
-                        ImageView imgView = (ImageView) firstChild;
-                        double w = imgView.getFitWidth();
-                        double h = imgView.getFitHeight();
-                        javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle(w, h);
-                        clip.setArcWidth(0);
-                        clip.setArcHeight(0);
-                        imgView.setClip(clip);
-                    }
-                }
-            }
-
-            @Override
-            protected double computePrefHeight(double width) {
-                if (item.getThumbnail() != null && width > 0) {
-                    // Calculate height based on aspect ratio
-                    double imgWidth = item.getThumbnail().getWidth();
-                    double imgHeight = item.getThumbnail().getHeight();
-                    double aspectRatio = imgHeight / imgWidth;
-                    return width * aspectRatio;
-                }
-                return width; // Square for placeholders
-            }
-        };
+        // Square thumbnail card for uniform grid
+        StackPane card = new StackPane();
         card.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
+        card.setPrefSize(300, 300); // Larger square size
+        card.setMinSize(300, 300);
+        card.setMaxSize(300, 300);
 
         if (item.getThumbnail() != null) {
+            // Thumbnail loaded - fill the square card
             ImageView thumbnailView = new ImageView(item.getThumbnail());
-            thumbnailView.setPreserveRatio(true);
-            thumbnailView.setSmooth(true);
-
-            // Bind image size to card size
-            thumbnailView.fitWidthProperty().bind(card.widthProperty());
-            thumbnailView.fitHeightProperty().bind(card.heightProperty());
+            thumbnailView.setPreserveRatio(false); // Fill square
+            thumbnailView.setSmooth(false); // Faster rendering, less memory
+            thumbnailView.setFitWidth(300);
+            thumbnailView.setFitHeight(300);
 
             card.getChildren().add(thumbnailView);
 
-            // Add play icon overlay for videos (small and centered)
+            // Add play icon overlay for videos
             if (item.getType() == MediaItem.MediaType.VIDEO) {
                 StackPane playIconContainer = new StackPane();
-                playIconContainer.setMaxSize(50, 50);
-                playIconContainer.setStyle("-fx-background-color: rgba(0,0,0,0.5); -fx-background-radius: 25;");
+                playIconContainer.setMaxSize(40, 40);
+                playIconContainer.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-background-radius: 20;");
 
                 Label playIcon = new Label("▶");
-                playIcon.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 20px;");
+                playIcon.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 16px;");
                 playIconContainer.getChildren().add(playIcon);
 
                 card.getChildren().add(playIconContainer);
             }
         } else {
-            // Placeholder with icon - will be square
-            card.setStyle("-fx-background-color: #2d3142; -fx-background-radius: 0; -fx-cursor: hand;");
-
-            Label placeholderIcon = new Label(item.getType() == MediaItem.MediaType.IMAGE ? "📷" : "🎬");
-            placeholderIcon.setStyle("-fx-font-size: 64px;");
+            // No thumbnail yet (video loading)
+            card.setStyle("-fx-background-color: #2d3142; -fx-cursor: hand;");
+            Label placeholderIcon = new Label("🎬");
+            placeholderIcon.setStyle("-fx-font-size: 48px;");
             card.getChildren().add(placeholderIcon);
         }
 

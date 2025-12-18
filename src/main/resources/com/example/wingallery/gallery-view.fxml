@@ -44,7 +44,7 @@
     </top>
     <center>
         <ScrollPane fx:id="galleryScrollPane" fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED" style="-fx-background: #0b0e14; -fx-background-color: #0b0e14;">
-            <MasonryPane fx:id="galleryPane" style="-fx-padding: 20 20 30 30; -fx-background-color: #0b0e14;"/>
+            <MasonryPane fx:id="galleryPane" style="-fx-padding: 0; -fx-background-color: #0b0e14;"/>
         </ScrollPane>
     </center>
     </BorderPane>
