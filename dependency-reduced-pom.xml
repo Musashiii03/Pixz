@@ -4,7 +4,7 @@
   <groupId>com.example</groupId>
   <artifactId>WinGallery</artifactId>
   <name>WinGallery</name>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.1.0</version>
   <build>
     <plugins>
       <plugin>
@@ -78,9 +78,6 @@
               <noManPages>true</noManPages>
               <stripDebug>false</stripDebug>
               <noHeaderFiles>true</noHeaderFiles>
-              <options>
-                <option>--bind-services</option>
-              </options>
             </configuration>
           </execution>
         </executions>
@@ -94,7 +91,7 @@
             <id>msi</id>
             <configuration>
               <name>WinGallery</name>
-              <appVersion>1.0.0</appVersion>
+              <appVersion>1.1.0</appVersion>
               <vendor>WinGallery</vendor>
               <destination>target/installer</destination>
               <type>MSI</type>
@@ -114,7 +111,7 @@
             <id>portable</id>
             <configuration>
               <name>WinGallery</name>
-              <appVersion>1.0.0</appVersion>
+              <appVersion>1.1.0</appVersion>
               <vendor>WinGallery</vendor>
               <destination>target/portable</destination>
               <type>APP_IMAGE</type>

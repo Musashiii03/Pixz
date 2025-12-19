@@ -130,6 +130,9 @@ public class GalleryController {
             applyFiltersAndSort();
         });
 
+        // Enable scroll past end - add extra padding at bottom
+        setupScrollPastEnd();
+
         // Setup sidebar auto-hide
         setupSidebar();
 
@@ -144,6 +147,23 @@ public class GalleryController {
 
         // Show empty state if no folders
         showEmptyStateIfNeeded();
+    }
+    
+    /**
+     * Setup scroll past end functionality
+     * Adds extra padding at bottom so user can scroll past the last item
+     */
+    private void setupScrollPastEnd() {
+        Platform.runLater(() -> {
+            // Add listener to viewport height to calculate padding
+            galleryScrollPane.viewportBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
+                if (newBounds != null) {
+                    // Add padding equal to 70% of viewport height
+                    double extraPadding = newBounds.getHeight() * 0.7;
+                    galleryPane.setStyle("-fx-background-color: #000000; -fx-padding: 0 0 " + extraPadding + " 0;");
+                }
+            });
+        });
     }
 
     /**
@@ -170,6 +190,8 @@ public class GalleryController {
         if (!selectedFolders.isEmpty()) {
             SessionManager.saveSession(selectedFolders);
         }
+        // Shutdown thumbnail generator thread pool
+        ThumbnailGenerator.shutdown();
     }
 
     private void showEmptyStateIfNeeded() {
@@ -364,6 +386,14 @@ public class GalleryController {
         }
     }
 
+    /**
+     * Check if a file is a direct child of a folder (not in subfolders)
+     */
+    private boolean isDirectChildOf(File file, File folder) {
+        File parent = file.getParentFile();
+        return parent != null && parent.getAbsolutePath().equals(folder.getAbsolutePath());
+    }
+
     private void applyFiltersAndSort() {
         // Show empty state if no media items
         if (mediaItems.isEmpty()) {
@@ -376,6 +406,8 @@ public class GalleryController {
             rootPane.setCenter(galleryScrollPane);
         }
 
+        // Clear ImageViews properly before clearing children
+        clearGalleryImageViews();
         galleryPane.getChildren().clear();
 
         String searchText = searchField.getText();
@@ -402,9 +434,9 @@ public class GalleryController {
             boolean matchesSearch = searchText == null || searchText.trim().isEmpty() ||
                     item.getName().toLowerCase().contains(lowerSearch);
 
-            // Apply folder filter
+            // Apply folder filter - only show direct children of the selected folder
             boolean matchesFolderFilter = currentFolderFilter == null ||
-                    item.getPath().startsWith(currentFolderFilter);
+                    isDirectChildOf(item.getFile(), new File(currentFolderFilter));
 
             if (matchesFilter && matchesSearch && matchesFolderFilter) {
                 filteredItems.add(item);
@@ -573,22 +605,44 @@ public class GalleryController {
             currentFolderFilter = null;
         }
 
-        // Remove media items from this folder
-        mediaItems.removeIf(item -> item.getPath().startsWith(folderPath));
+        // Remove media items from this folder and clear their thumbnails
+        mediaItems.removeIf(item -> {
+            if (item.getPath().startsWith(folderPath)) {
+                item.setThumbnail(null); // Release thumbnail reference
+                return true;
+            }
+            return false;
+        });
+        
         refreshGallery();
         updateHeaderInfo();
     }
 
     private void scanFolder(File folder) {
-        // Scan folder for media files in background (including subfolders)
+        // Scan folder sequentially to prevent memory spikes
+        // Uses bounded thread pool internally for thumbnail generation
         CompletableFuture.runAsync(() -> {
             List<MediaItem> newItems = new ArrayList<>();
             Map<String, Integer> folderMediaCount = new HashMap<>();
+            
+            // Scan files first (fast, no I/O)
             scanFolderRecursive(folder, newItems, folderMediaCount);
 
             // Add items to gallery on UI thread
             Platform.runLater(() -> {
-                mediaItems.addAll(newItems);
+                // Add only new items that don't already exist (prevent duplicates)
+                for (MediaItem newItem : newItems) {
+                    boolean alreadyExists = false;
+                    for (MediaItem existingItem : mediaItems) {
+                        if (existingItem.getPath().equals(newItem.getPath())) {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyExists) {
+                        mediaItems.add(newItem);
+                    }
+                }
 
                 // Only add folders that contain media files
                 for (Map.Entry<String, Integer> entry : folderMediaCount.entrySet()) {
@@ -604,8 +658,37 @@ public class GalleryController {
 
                 refreshGallery();
                 updateHeaderInfo();
+                
+                // Now progressively generate thumbnails (throttled by semaphore)
+                generateThumbnailsProgressively(newItems);
             });
         });
+    }
+    
+    /**
+     * Generate thumbnails progressively to avoid memory spikes
+     * Thumbnails are generated with bounded thread pool and semaphore throttling
+     */
+    private void generateThumbnailsProgressively(List<MediaItem> items) {
+        for (MediaItem item : items) {
+            if (item.getType() == MediaItem.MediaType.IMAGE) {
+                ThumbnailGenerator.generateImageThumbnail(item.getFile())
+                    .thenAccept(thumbnail -> {
+                        if (thumbnail != null) {
+                            item.setThumbnail(thumbnail);
+                            Platform.runLater(() -> updateGalleryItem(item));
+                        }
+                    });
+            } else if (item.getType() == MediaItem.MediaType.VIDEO) {
+                ThumbnailGenerator.generateVideoThumbnail(item.getFile())
+                    .thenAccept(thumbnail -> {
+                        if (thumbnail != null) {
+                            item.setThumbnail(thumbnail);
+                            Platform.runLater(() -> updateGalleryItem(item));
+                        }
+                    });
+            }
+        }
     }
 
     private void scanFolderRecursive(File folder, List<MediaItem> items, Map<String, Integer> folderMediaCount) {
@@ -618,27 +701,15 @@ public class GalleryController {
                     // Recursively scan subdirectories
                     scanFolderRecursive(file, items, folderMediaCount);
                 } else if (file.isFile()) {
-                    MediaItem item = null;
+                    // Just identify media files, don't generate thumbnails yet
                     if (ThumbnailGenerator.isImageFile(file)) {
-                        item = new MediaItem(file, MediaItem.MediaType.IMAGE);
-                        // Generate thumbnail immediately (small size for memory efficiency)
-                        Image thumbnail = ThumbnailGenerator.generateImageThumbnail(file);
-                        item.setThumbnail(thumbnail);
+                        MediaItem item = new MediaItem(file, MediaItem.MediaType.IMAGE);
                         items.add(item);
                         mediaFilesInThisFolder++;
                     } else if (ThumbnailGenerator.isVideoFile(file)) {
-                        item = new MediaItem(file, MediaItem.MediaType.VIDEO);
+                        MediaItem item = new MediaItem(file, MediaItem.MediaType.VIDEO);
                         items.add(item);
                         mediaFilesInThisFolder++;
-                        
-                        // Generate video thumbnail asynchronously
-                        MediaItem finalItem = item;
-                        ThumbnailGenerator.generateVideoThumbnail(file).thenAccept(thumbnail -> {
-                            if (thumbnail != null) {
-                                finalItem.setThumbnail(thumbnail);
-                            }
-                            Platform.runLater(() -> updateGalleryItem(finalItem));
-                        });
                     }
                 }
             }
@@ -658,35 +729,101 @@ public class GalleryController {
     }
 
     private void updateGalleryItem(MediaItem item) {
-        // Find and update the card for this item
-        refreshGallery();
+        // Find and update the specific card for this item (efficient update)
+        for (javafx.scene.Node node : galleryPane.getChildren()) {
+            if (node instanceof StackPane) {
+                StackPane card = (StackPane) node;
+                // Check if this card belongs to the updated item
+                if (card.getUserData() == item) {
+                    updateCardWithThumbnail(card, item, item.getThumbnail());
+                    return;
+                }
+            }
+        }
     }
     
     private void updateCardWithThumbnail(StackPane card, MediaItem item, Image thumbnail) {
+        // Clear old ImageViews before clearing children
+        clearImageViewsRecursive(card);
+        
         // Clear placeholder
         card.getChildren().clear();
         card.setStyle("-fx-background-color: transparent; -fx-cursor: hand;");
         
-        // Add thumbnail - fill the square
-        ImageView thumbnailView = new ImageView(thumbnail);
-        thumbnailView.setPreserveRatio(false); // Fill square
-        thumbnailView.setSmooth(false); // Faster rendering, less memory
-        thumbnailView.setFitWidth(300);
-        thumbnailView.setFitHeight(300);
+        // If thumbnail was reclaimed by GC, reload from cache
+        if (thumbnail == null) {
+            thumbnail = ThumbnailCache.getCachedThumbnail(item.getFile());
+            if (thumbnail != null) {
+                item.setThumbnail(thumbnail); // Restore WeakReference
+            }
+        }
         
-        card.getChildren().add(thumbnailView);
-        
-        // Add play icon overlay for videos
-        if (item.getType() == MediaItem.MediaType.VIDEO) {
-            StackPane playIconContainer = new StackPane();
-            playIconContainer.setMaxSize(40, 40);
-            playIconContainer.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-background-radius: 20;");
+        if (thumbnail != null) {
+            // Add thumbnail - fill cell like CSS object-fit: cover
+            ImageView thumbnailView = new ImageView(thumbnail);
+            thumbnailView.setPreserveRatio(true); // Don't squeeze
+            thumbnailView.setSmooth(false); // Faster rendering, less memory
             
-            Label playIcon = new Label("▶");
-            playIcon.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 16px;");
-            playIconContainer.getChildren().add(playIcon);
+            // Calculate size to fill the cell (cover behavior)
+            double imageWidth = thumbnail.getWidth();
+            double imageHeight = thumbnail.getHeight();
+            double imageRatio = imageWidth / imageHeight;
+            double cellRatio = 1.0; // Square cell
             
-            card.getChildren().add(playIconContainer);
+            if (imageRatio > cellRatio) {
+                // Image is wider - fit to height, overflow width
+                thumbnailView.setFitHeight(300);
+                thumbnailView.setFitWidth(300 * imageRatio);
+            } else {
+                // Image is taller - fit to width, overflow height
+                thumbnailView.setFitWidth(300);
+                thumbnailView.setFitHeight(300 / imageRatio);
+            }
+            
+            // Clip to square bounds
+            javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle(300, 300);
+            card.setClip(clip);
+            
+            // Start invisible for fade-in animation
+            thumbnailView.setOpacity(0.0);
+            card.getChildren().add(thumbnailView);
+            
+            // Add play icon overlay for videos
+            if (item.getType() == MediaItem.MediaType.VIDEO) {
+                StackPane playIconContainer = new StackPane();
+                playIconContainer.setMaxSize(40, 40);
+                playIconContainer.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-background-radius: 20;");
+                
+                Label playIcon = new Label("▶");
+                playIcon.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 16px;");
+                playIconContainer.getChildren().add(playIcon);
+                
+                playIconContainer.setOpacity(0.0);
+                card.getChildren().add(playIconContainer);
+            }
+            
+            // Smooth fade-in animation
+            javafx.animation.FadeTransition fadeIn = new javafx.animation.FadeTransition(
+                javafx.util.Duration.millis(200), thumbnailView);
+            fadeIn.setFromValue(0.0);
+            fadeIn.setToValue(1.0);
+            fadeIn.play();
+            
+            // Fade in play icon if present
+            if (item.getType() == MediaItem.MediaType.VIDEO && card.getChildren().size() > 1) {
+                javafx.scene.Node playIconContainer = card.getChildren().get(1);
+                javafx.animation.FadeTransition playIconFade = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(200), playIconContainer);
+                playIconFade.setFromValue(0.0);
+                playIconFade.setToValue(1.0);
+                playIconFade.play();
+            }
+        } else {
+            // Thumbnail not available (reclaimed and not in cache)
+            card.setStyle("-fx-background-color: #2d3142; -fx-cursor: hand;");
+            Label placeholderIcon = new Label(item.getType() == MediaItem.MediaType.VIDEO ? "🎬" : "📷");
+            placeholderIcon.setStyle("-fx-font-size: 48px;");
+            card.getChildren().add(placeholderIcon);
         }
         
         // Request layout update
@@ -700,14 +837,35 @@ public class GalleryController {
         card.setPrefSize(300, 300); // Larger square size
         card.setMinSize(300, 300);
         card.setMaxSize(300, 300);
+        
+        // Store reference to item for efficient updates
+        card.setUserData(item);
 
         if (item.getThumbnail() != null) {
-            // Thumbnail loaded - fill the square card
+            // Thumbnail loaded - fill cell like CSS object-fit: cover
             ImageView thumbnailView = new ImageView(item.getThumbnail());
-            thumbnailView.setPreserveRatio(false); // Fill square
+            thumbnailView.setPreserveRatio(true); // Don't squeeze
             thumbnailView.setSmooth(false); // Faster rendering, less memory
-            thumbnailView.setFitWidth(300);
-            thumbnailView.setFitHeight(300);
+            
+            // Calculate size to fill the cell (cover behavior)
+            double imageWidth = item.getThumbnail().getWidth();
+            double imageHeight = item.getThumbnail().getHeight();
+            double imageRatio = imageWidth / imageHeight;
+            double cellRatio = 1.0; // Square cell
+            
+            if (imageRatio > cellRatio) {
+                // Image is wider - fit to height, overflow width
+                thumbnailView.setFitHeight(300);
+                thumbnailView.setFitWidth(300 * imageRatio);
+            } else {
+                // Image is taller - fit to width, overflow height
+                thumbnailView.setFitWidth(300);
+                thumbnailView.setFitHeight(300 / imageRatio);
+            }
+            
+            // Clip to square bounds
+            javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle(300, 300);
+            card.setClip(clip);
 
             card.getChildren().add(thumbnailView);
 
@@ -804,7 +962,7 @@ public class GalleryController {
         BorderPane layout = new BorderPane();
         layout.setStyle("-fx-background-color: #000000;");
 
-        // Image in center with proper constraints
+        // Load full-quality image for fullscreen viewing
         Image image = new Image(item.getFile().toURI().toString());
         ImageView imageView = new ImageView(image);
         imageView.setPreserveRatio(true);
@@ -1220,6 +1378,11 @@ public class GalleryController {
             currentMediaPlayer = null;
         }
 
+        // Clear ImageViews before clearing children
+        if (fullscreenViewer != null) {
+            clearImageViewsRecursive(fullscreenViewer);
+        }
+        
         // Clear and rebuild the fullscreen viewer content
         fullscreenViewer.getChildren().clear();
 
@@ -1246,6 +1409,11 @@ public class GalleryController {
             currentMediaPlayer = null;
         }
 
+        // Clear all ImageViews in fullscreen viewer
+        if (fullscreenViewer != null) {
+            clearImageViewsRecursive(fullscreenViewer);
+        }
+
         // Restore custom title bar
         if (customTitleBar != null) {
             customTitleBar.setVisible(true);
@@ -1265,6 +1433,30 @@ public class GalleryController {
         // Exit fullscreen mode
         Stage stage = (Stage) rootPane.getScene().getWindow();
         stage.setFullScreen(false);
+    }
+    
+    /**
+     * Clear all ImageViews in the gallery to release image references
+     * This allows GC to reclaim memory when gallery is refreshed
+     */
+    private void clearGalleryImageViews() {
+        for (javafx.scene.Node node : galleryPane.getChildren()) {
+            clearImageViewsRecursive(node);
+        }
+    }
+    
+    /**
+     * Recursively clear all ImageView references in a node tree
+     * Critical for memory management - releases Image references so GC can reclaim
+     */
+    private void clearImageViewsRecursive(javafx.scene.Node node) {
+        if (node instanceof ImageView) {
+            ((ImageView) node).setImage(null);
+        } else if (node instanceof javafx.scene.Parent) {
+            for (javafx.scene.Node child : ((javafx.scene.Parent) node).getChildrenUnmodifiable()) {
+                clearImageViewsRecursive(child);
+            }
+        }
     }
 
 }

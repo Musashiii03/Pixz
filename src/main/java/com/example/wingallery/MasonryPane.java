@@ -10,11 +10,13 @@ import javafx.scene.layout.Pane;
  */
 public class MasonryPane extends Pane {
     private static final double COLUMN_WIDTH = 300; // Larger thumbnails
-    private static final double GAP = 0; // No gap between items
+    private static final double GAP = 2; // Thin black border between items
     private int numColumns = 3;
 
     public MasonryPane() {
         super();
+        // Set black background so gaps appear as black borders
+        setStyle("-fx-background-color: #000000;");
         // Listen to width changes to recalculate columns
         widthProperty().addListener((obs, oldVal, newVal) -> {
             calculateColumns();

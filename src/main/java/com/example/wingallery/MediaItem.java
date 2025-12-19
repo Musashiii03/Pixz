@@ -1,14 +1,17 @@
 package com.example.wingallery;
 
-import javafx.scene.image.Image;
 import java.io.File;
+import java.lang.ref.WeakReference;
+
+import javafx.scene.image.Image;
 
 /**
  * Model class representing a media file (image or video)
+ * Uses WeakReference for thumbnail to prevent memory leaks
  */
 public class MediaItem {
     private final File file;
-    private Image thumbnail;
+    private WeakReference<Image> thumbnailRef;
     private final MediaType type;
     private int width;
     private int height;
@@ -26,12 +29,21 @@ public class MediaItem {
         return file;
     }
 
+    /**
+     * Get thumbnail image
+     * Returns null if image was reclaimed by GC
+     * Caller should reload from cache if needed
+     */
     public Image getThumbnail() {
-        return thumbnail;
+        return thumbnailRef != null ? thumbnailRef.get() : null;
     }
 
+    /**
+     * Set thumbnail image using WeakReference
+     * Allows GC to reclaim memory when needed
+     */
     public void setThumbnail(Image thumbnail) {
-        this.thumbnail = thumbnail;
+        this.thumbnailRef = thumbnail != null ? new WeakReference<>(thumbnail) : null;
     }
 
     public MediaType getType() {
