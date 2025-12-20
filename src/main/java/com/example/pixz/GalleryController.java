@@ -970,9 +970,35 @@ public class GalleryController {
         fullscreenViewer.setStyle("-fx-background-color: #000000;");
 
         if (item.getType() == MediaItem.MediaType.IMAGE) {
-            setupImageViewer(fullscreenViewer, item);
+            // Create rotate action for images
+            Runnable rotateAction = () -> {
+                // Get the imageContainer from userData
+                Object userData = fullscreenViewer.getUserData();
+                if (userData instanceof Pane) {
+                    Pane imageContainer = (Pane) userData;
+                    double currentRotation = imageContainer.getRotate();
+                    double newRotation = currentRotation + 90;
+                    imageContainer.setRotate(newRotation);
+                    imageContainer.requestLayout();
+                }
+            };
+            HBox topBar = createTopBar(item, rotateAction);
+            setupImageViewer(fullscreenViewer, item, topBar);
         } else {
-            setupVideoViewer(fullscreenViewer, item);
+            // Create rotate action for videos
+            Runnable rotateAction = () -> {
+                // Get the videoContainer from userData
+                Object userData = fullscreenViewer.getUserData();
+                if (userData instanceof Pane) {
+                    Pane videoContainer = (Pane) userData;
+                    double currentRotation = videoContainer.getRotate();
+                    double newRotation = currentRotation + 90;
+                    videoContainer.setRotate(newRotation);
+                    videoContainer.requestLayout();
+                }
+            };
+            HBox topBar = createTopBar(item, rotateAction);
+            setupVideoViewer(fullscreenViewer, item, topBar);
         }
 
         // Hide sidebar immediately
@@ -1012,7 +1038,7 @@ public class GalleryController {
         fullscreenViewer.requestFocus();
     }
 
-    private void setupImageViewer(StackPane container, MediaItem item) {
+    private void setupImageViewer(StackPane container, MediaItem item, HBox topBar) {
         BorderPane layout = new BorderPane();
         layout.setStyle("-fx-background-color: #000000;");
 
@@ -1059,37 +1085,51 @@ public class GalleryController {
         imageContainer.getChildren().add(imageView);
         imageContainer.setStyle("-fx-background-color: #000000;");
 
-        // Rotate button at top-right - always visible
-        Button rotateButton = new Button("↻");
-        rotateButton.setStyle(
-                "-fx-background-color: rgba(0, 0, 0, 0.7); -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 10 15; -fx-background-radius: 8;");
-        rotateButton.setTooltip(new Tooltip("Rotate 90°"));
-
-        // Rotate button action with proper bounds handling
-        rotateButton.setOnAction(e -> {
-            double currentRotation = imageContainer.getRotate();
-            double newRotation = currentRotation + 90;
-            imageContainer.setRotate(newRotation);
-            imageContainer.requestLayout();
-        });
-
-        // Position rotate button at top-right
-        StackPane buttonContainer = new StackPane(rotateButton);
-        buttonContainer.setAlignment(Pos.TOP_RIGHT);
-        buttonContainer.setStyle("-fx-padding: 20;");
-
-        // Use StackPane to overlay button on image
+        // Use StackPane to overlay top bar on image
         StackPane imageStack = new StackPane();
-        imageStack.getChildren().addAll(imageContainer, buttonContainer);
+        imageStack.getChildren().add(imageContainer);
+        
+        // Add top bar overlay
+        StackPane.setAlignment(topBar, Pos.TOP_CENTER);
+        imageStack.getChildren().add(topBar);
 
         layout.setCenter(imageStack);
         container.getChildren().add(layout);
+        
+        // Auto-hide top bar with fade in/out (similar to video viewer)
+        topBar.setOpacity(1.0); // Start visible
+
+        javafx.animation.FadeTransition fadeOutTop = new javafx.animation.FadeTransition(
+                javafx.util.Duration.millis(500), topBar);
+        fadeOutTop.setFromValue(1.0);
+        fadeOutTop.setToValue(0.0);
+
+        javafx.animation.FadeTransition fadeInTop = new javafx.animation.FadeTransition(
+                javafx.util.Duration.millis(200), topBar);
+        fadeInTop.setFromValue(0.0);
+        fadeInTop.setToValue(1.0);
+
+        javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
+                javafx.util.Duration.seconds(3));
+        idleTimer.setOnFinished(ev -> fadeOutTop.play());
+
+        // Reset timer on movement
+        imageStack.setOnMouseMoved(e -> {
+            if (topBar.getOpacity() < 1.0) {
+                fadeInTop.play();
+            }
+            topBar.setOpacity(1.0); // Ensure visible
+            idleTimer.playFromStart(); // Reset timer
+        });
+
+        // Start timer initially
+        idleTimer.play();
+        
+        // Store reference to imageContainer for rotation
+        container.setUserData(imageContainer);
     }
 
-    private void setupVideoViewer(StackPane container, MediaItem item) {
-        BorderPane layout = new BorderPane();
-        layout.setStyle("-fx-background-color: #000000;");
-
+    private void setupVideoViewer(StackPane container, MediaItem item, HBox topBar) {
         // Video in center with proper constraints
         try {
             Media media = new Media(item.getFile().toURI().toString());
@@ -1211,22 +1251,56 @@ public class GalleryController {
             videoStack.getChildren().add(videoContainer);
 
             // --- Control Bar Setup ---
+            // Create a VBox to stack progress bar on top and controls below
+            VBox controlsContainer = new VBox(0);
+            controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8);");
+            controlsContainer.setMaxWidth(Double.MAX_VALUE);
+            controlsContainer.setMaxHeight(Region.USE_PREF_SIZE); // Don't expand vertically
+
+            // Progress bar container with hover preview
+            StackPane progressContainer = new StackPane();
+            progressContainer.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
+            progressContainer.setMaxWidth(Double.MAX_VALUE);
+            progressContainer.setMinHeight(8);
+            progressContainer.setMaxHeight(8);
+
+            // Seek Slider (styled as progress bar)
+            javafx.scene.control.Slider seekSlider = new javafx.scene.control.Slider();
+            seekSlider.setMaxWidth(Double.MAX_VALUE);
+            seekSlider.setStyle("-fx-padding: 0;");
+            seekSlider.setDisable(true); // Initially disabled
+
+            progressContainer.getChildren().add(seekSlider);
+
+            // Add hover effect to slider - make it pop out and brighter
+            seekSlider.setOnMouseEntered(e -> {
+                seekSlider.setScaleY(1.8); // Make it bigger vertically (pop out effect)
+                seekSlider.setStyle("-fx-padding: 0; -fx-opacity: 1.0;"); // Brighter
+            });
+
+            seekSlider.setOnMouseExited(e -> {
+                seekSlider.setScaleY(1.0); // Return to normal size
+                seekSlider.setStyle("-fx-padding: 0; -fx-opacity: 0.8;"); // Normal brightness
+            });
+
+            // Set initial opacity
+            seekSlider.setOpacity(0.8);
+
+            // Controls bar with buttons and time
             HBox controlsBar = new HBox(15);
             controlsBar.setAlignment(Pos.CENTER_LEFT);
-            controlsBar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.7); -fx-padding: 10 20;");
-            controlsBar.setMaxWidth(Double.MAX_VALUE); // Full width
-            controlsBar.setMinHeight(60);
-            controlsBar.setMaxHeight(60);
-            StackPane.setAlignment(controlsBar, Pos.BOTTOM_CENTER);
+            controlsBar.setStyle("-fx-background-color: transparent; -fx-padding: 10 20;");
+            controlsBar.setMaxWidth(Double.MAX_VALUE);
+            controlsBar.setMinHeight(50);
 
             // Styles for buttons
-            String btnStyle = "-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand; -fx-background-radius: 5;";
-            String activeBtnStyle = "-fx-background-color: rgba(255, 255, 255, 0.2); -fx-text-fill: white; -fx-font-size: 16px; -fx-cursor: hand; -fx-background-radius: 5;";
+            String btnStyle = "-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5;";
+            String activeBtnStyle = "-fx-background-color: rgba(255, 255, 255, 0.2); -fx-text-fill: white; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5; -fx-background-radius: 4;";
 
             // 1. Play/Pause Button
             Button playPauseBtn = new Button("⏸"); // Default to pause symbol as it auto-plays
             playPauseBtn.setStyle(btnStyle);
-            playPauseBtn.setMinWidth(40);
+            playPauseBtn.setMinWidth(30);
 
             Runnable updatePlayBtn = () -> {
                 if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
@@ -1246,19 +1320,75 @@ public class GalleryController {
 
             currentMediaPlayer.statusProperty().addListener((obs, old, newVal) -> updatePlayBtn.run());
 
-            // 2. Seek Slider
-            javafx.scene.control.Slider seekSlider = new javafx.scene.control.Slider();
-            seekSlider.setMaxWidth(Double.MAX_VALUE);
-            HBox.setHgrow(seekSlider, Priority.ALWAYS); // Grow to fill space
-            seekSlider.setDisable(true); // Initially disabled
+            // 2. Volume Button
+            Button volumeBtn = new Button("🔊");
+            volumeBtn.setStyle(btnStyle);
+            volumeBtn.setMinWidth(30);
+            volumeBtn.setOnAction(e -> {
+                if (currentMediaPlayer.getVolume() > 0) {
+                    currentMediaPlayer.setVolume(0);
+                    volumeBtn.setText("🔇");
+                } else {
+                    currentMediaPlayer.setVolume(1.0);
+                    volumeBtn.setText("🔊");
+                }
+            });
+
+            // Left spacer to push time to center
+            Region leftSpacer = new Region();
+            HBox.setHgrow(leftSpacer, Priority.ALWAYS);
+
+            // 3. Time Labels (centered)
+            Label currentTimeLabel = new Label("00:00");
+            currentTimeLabel.setStyle("-fx-text-fill: white; -fx-font-size: 13px;");
+
+            Label separatorLabel = new Label("/");
+            separatorLabel.setStyle("-fx-text-fill: #999999; -fx-font-size: 13px;");
+
+            Label totalTimeLabel = new Label("00:00");
+            totalTimeLabel.setStyle("-fx-text-fill: white; -fx-font-size: 13px;");
+
+            // Right spacer to keep time centered
+            Region rightSpacer = new Region();
+            HBox.setHgrow(rightSpacer, Priority.ALWAYS);
+
+            // 4. Loop Button (on the right)
+            Button loopBtn = new Button("🔁");
+            loopBtn.setTooltip(new Tooltip("Toggle Loop"));
+            loopBtn.setStyle(btnStyle);
+            loopBtn.setMinWidth(30);
+
+            loopBtn.setOnAction(e -> {
+                if (currentMediaPlayer.getCycleCount() == 1) {
+                    currentMediaPlayer.setCycleCount(MediaPlayer.INDEFINITE);
+                    loopBtn.setStyle(activeBtnStyle);
+                } else {
+                    currentMediaPlayer.setCycleCount(1);
+                    loopBtn.setStyle(btnStyle);
+                }
+            });
+
+            // Add all to controls bar
+            controlsBar.getChildren().addAll(playPauseBtn, volumeBtn, leftSpacer, currentTimeLabel, separatorLabel, totalTimeLabel, rightSpacer, loopBtn);
+
+            // Add progress bar and controls to container
+            controlsContainer.getChildren().addAll(progressContainer, controlsBar);
 
             // Slider Logic
             final boolean[] isUpdatingFromPlayer = { false };
+
+            // Format time helper
+            java.util.function.Function<Double, String> formatTime = (seconds) -> {
+                int mins = (int) (seconds / 60);
+                int secs = (int) (seconds % 60);
+                return String.format("%02d:%02d", mins, secs);
+            };
 
             currentMediaPlayer.currentTimeProperty().addListener((obs, oldTime, newTime) -> {
                 if (!seekSlider.isValueChanging()) {
                     isUpdatingFromPlayer[0] = true;
                     seekSlider.setValue(newTime.toSeconds());
+                    currentTimeLabel.setText(formatTime.apply(newTime.toSeconds()));
                     isUpdatingFromPlayer[0] = false;
                 }
             });
@@ -1268,6 +1398,7 @@ public class GalleryController {
                 if (total != null && !total.isIndefinite() && !total.isUnknown()) {
                     seekSlider.setMax(total.toSeconds());
                     seekSlider.setDisable(false);
+                    totalTimeLabel.setText(formatTime.apply(total.toSeconds()));
                 }
             };
 
@@ -1284,13 +1415,14 @@ public class GalleryController {
                 if (newD != null && !newD.isIndefinite() && !newD.isUnknown()) {
                     seekSlider.setMax(newD.toSeconds());
                     seekSlider.setDisable(false);
+                    totalTimeLabel.setText(formatTime.apply(newD.toSeconds()));
                 }
             });
 
             // Reset at end
             currentMediaPlayer.setOnEndOfMedia(() -> {
                 seekSlider.setValue(seekSlider.getMax());
-                playPauseBtn.setText("▶"); // Show play button at end
+                playPauseBtn.setText("▶");
             });
 
             seekSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -1305,73 +1437,65 @@ public class GalleryController {
                 }
             });
 
-            // 3. Loop Button
-            Button loopBtn = new Button("🔁");
-            loopBtn.setTooltip(new Tooltip("Toggle Loop"));
-            loopBtn.setStyle(btnStyle); // Default off
+            // Add controls container to stack
+            videoStack.getChildren().add(controlsContainer);
+            StackPane.setAlignment(controlsContainer, Pos.BOTTOM_CENTER);
+            
+            // Add top bar overlay
+            videoStack.getChildren().add(topBar);
+            StackPane.setAlignment(topBar, Pos.TOP_CENTER);
 
-            loopBtn.setOnAction(e -> {
-                if (currentMediaPlayer.getCycleCount() == 1) {
-                    currentMediaPlayer.setCycleCount(MediaPlayer.INDEFINITE);
-                    loopBtn.setStyle(activeBtnStyle); // Visual feedback
-                } else {
-                    currentMediaPlayer.setCycleCount(1);
-                    loopBtn.setStyle(btnStyle);
-                }
-            });
+            // --- Auto-Hide Logic for both top and bottom bars ---
+            controlsContainer.setOpacity(1.0); // Start visible
+            topBar.setOpacity(1.0); // Start visible
 
-            // 4. Rotate Button
-            Button rotateBtn = new Button("↻");
-            rotateBtn.setTooltip(new Tooltip("Rotate Video"));
-            rotateBtn.setStyle(btnStyle);
+            javafx.animation.FadeTransition fadeOutControls = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(500), controlsContainer);
+            fadeOutControls.setFromValue(1.0);
+            fadeOutControls.setToValue(0.0);
+            
+            javafx.animation.FadeTransition fadeOutTop = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(500), topBar);
+            fadeOutTop.setFromValue(1.0);
+            fadeOutTop.setToValue(0.0);
 
-            rotateBtn.setOnAction(e -> {
-                double currentRotation = videoContainer.getRotate();
-                double newRotation = currentRotation + 90;
-                videoContainer.setRotate(newRotation);
-                videoContainer.requestLayout();
-            });
-
-            // Add all to bar
-            controlsBar.getChildren().addAll(playPauseBtn, seekSlider, loopBtn, rotateBtn);
-
-            // Add bar to stack
-            videoStack.getChildren().add(controlsBar);
-
-            // --- Auto-Hide Logic ---
-            controlsBar.setOpacity(1.0); // Start visible
-
-            javafx.animation.FadeTransition fadeOut = new javafx.animation.FadeTransition(
-                    javafx.util.Duration.millis(500), controlsBar);
-            fadeOut.setFromValue(1.0);
-            fadeOut.setToValue(0.0);
-
-            javafx.animation.FadeTransition fadeIn = new javafx.animation.FadeTransition(
-                    javafx.util.Duration.millis(200), controlsBar);
-            fadeIn.setFromValue(0.0);
-            fadeIn.setToValue(1.0);
+            javafx.animation.FadeTransition fadeInControls = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(200), controlsContainer);
+            fadeInControls.setFromValue(0.0);
+            fadeInControls.setToValue(1.0);
+            
+            javafx.animation.FadeTransition fadeInTop = new javafx.animation.FadeTransition(
+                    javafx.util.Duration.millis(200), topBar);
+            fadeInTop.setFromValue(0.0);
+            fadeInTop.setToValue(1.0);
 
             javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
                     javafx.util.Duration.seconds(3));
-            idleTimer.setOnFinished(ev -> fadeOut.play());
+            idleTimer.setOnFinished(ev -> {
+                fadeOutControls.play();
+                fadeOutTop.play();
+            });
 
             // Reset timer on movement
             videoStack.setOnMouseMoved(e -> {
-                if (controlsBar.getOpacity() < 1.0) {
-                    fadeIn.play();
+                if (controlsContainer.getOpacity() < 1.0) {
+                    fadeInControls.play();
+                    fadeInTop.play();
                 }
-                controlsBar.setOpacity(1.0); // Ensure visible
+                controlsContainer.setOpacity(1.0); // Ensure visible
+                topBar.setOpacity(1.0); // Ensure visible
                 idleTimer.playFromStart(); // Reset timer
             });
 
             // Also show on click
             videoStack.setOnMouseClicked(e -> {
-                if (controlsBar.getOpacity() < 1.0) {
-                    fadeIn.play();
+                if (controlsContainer.getOpacity() < 1.0) {
+                    fadeInControls.play();
+                    fadeInTop.play();
                     idleTimer.playFromStart();
                 } else {
                     // If clicking not on controls, toggle play/pause
-                    if (!controlsBar.contains(controlsBar.sceneToLocal(e.getSceneX(), e.getSceneY()))) {
+                    if (!controlsContainer.contains(controlsContainer.sceneToLocal(e.getSceneX(), e.getSceneY()))) {
                         if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
                             currentMediaPlayer.pause();
                         } else {
@@ -1384,8 +1508,10 @@ public class GalleryController {
             // Start timer initially
             idleTimer.play();
 
-            layout.setCenter(videoStack);
-            container.getChildren().add(layout);
+            container.getChildren().add(videoStack);
+            
+            // Store reference to videoContainer for rotation
+            container.setUserData(videoContainer);
 
             // Auto-play
             currentMediaPlayer.setAutoPlay(true);
@@ -1395,7 +1521,7 @@ public class GalleryController {
             // Show error message
             VBox errorBox = new VBox(20);
             errorBox.setAlignment(Pos.CENTER);
-            errorBox.setStyle("-fx-padding: 20;");
+            errorBox.setStyle("-fx-padding: 20; -fx-background-color: #000000;");
 
             Label errorLabel = new Label("Error loading video: " + item.getName());
             errorLabel.setStyle("-fx-text-fill: #ff0000; -fx-font-size: 18px;");
@@ -1405,9 +1531,47 @@ public class GalleryController {
 
             errorBox.getChildren().addAll(errorLabel, closeButton);
 
-            layout.setCenter(errorBox);
-            container.getChildren().add(layout);
+            container.getChildren().add(errorBox);
         }
+    }
+    
+    private HBox createTopBar(MediaItem item, Runnable rotateAction) {
+        HBox topBar = new HBox(15);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+        topBar.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8); -fx-padding: 15 20;");
+        topBar.setMaxWidth(Double.MAX_VALUE); // Full width
+        topBar.setMinHeight(60);
+        topBar.setMaxHeight(60);
+        
+        // Close button (left side)
+        Button closeButton = new Button("✕");
+        closeButton.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+        closeButton.setOnAction(e -> closeFullscreenViewer());
+        closeButton.setOnMouseEntered(e -> closeButton.setStyle("-fx-background-color: rgba(255, 255, 255, 0.1); -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;"));
+        closeButton.setOnMouseExited(e -> closeButton.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;"));
+        
+        // Spacer to push filename to center
+        Region leftSpacer = new Region();
+        HBox.setHgrow(leftSpacer, Priority.ALWAYS);
+        
+        // Filename label (centered)
+        Label filenameLabel = new Label(item.getName());
+        filenameLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+        
+        // Spacer to keep filename centered
+        Region rightSpacer = new Region();
+        HBox.setHgrow(rightSpacer, Priority.ALWAYS);
+        
+        // Rotate button (right side, after filename)
+        Button rotateButton = new Button("↻");
+        rotateButton.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+        rotateButton.setTooltip(new Tooltip("Rotate 90°"));
+        rotateButton.setOnMouseEntered(e -> rotateButton.setStyle("-fx-background-color: rgba(255, 255, 255, 0.1); -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;"));
+        rotateButton.setOnMouseExited(e -> rotateButton.setStyle("-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;"));
+        rotateButton.setOnAction(e -> rotateAction.run());
+        
+        topBar.getChildren().addAll(closeButton, leftSpacer, filenameLabel, rightSpacer, rotateButton);
+        return topBar;
     }
 
     private void navigateToNextMedia() {
@@ -1441,9 +1605,35 @@ public class GalleryController {
         fullscreenViewer.getChildren().clear();
 
         if (item.getType() == MediaItem.MediaType.IMAGE) {
-            setupImageViewer(fullscreenViewer, item);
+            // Create rotate action for images
+            Runnable rotateAction = () -> {
+                // Get the imageContainer from userData
+                Object userData = fullscreenViewer.getUserData();
+                if (userData instanceof Pane) {
+                    Pane imageContainer = (Pane) userData;
+                    double currentRotation = imageContainer.getRotate();
+                    double newRotation = currentRotation + 90;
+                    imageContainer.setRotate(newRotation);
+                    imageContainer.requestLayout();
+                }
+            };
+            HBox topBar = createTopBar(item, rotateAction);
+            setupImageViewer(fullscreenViewer, item, topBar);
         } else {
-            setupVideoViewer(fullscreenViewer, item);
+            // Create rotate action for videos
+            Runnable rotateAction = () -> {
+                // Get the videoContainer from userData
+                Object userData = fullscreenViewer.getUserData();
+                if (userData instanceof Pane) {
+                    Pane videoContainer = (Pane) userData;
+                    double currentRotation = videoContainer.getRotate();
+                    double newRotation = currentRotation + 90;
+                    videoContainer.setRotate(newRotation);
+                    videoContainer.requestLayout();
+                }
+            };
+            HBox topBar = createTopBar(item, rotateAction);
+            setupVideoViewer(fullscreenViewer, item, topBar);
         }
 
         // Ensure focus for keyboard events
