@@ -1,14 +1,36 @@
-# WinGallery
+# Pixz
 
-A modern photo and video gallery application for Windows with a beautiful masonry layout.
+Modern photo and video gallery for Windows with smart features and beautiful UI.
 
 ## Features
 
-- 📸 **Photo & Video Support** - View images (JPG, PNG, GIF, BMP) and videos (MP4, AVI, MOV, MKV)
-- 🎨 **Masonry Layout** - Pinterest-style responsive grid
-- 🔍 **Search & Filter** - Search by filename, filter by media type
-- 📊 **Sort Options** - Sort by name or date modified
-- 🎬 **Video Player** - Built-in player with controls, loop, and fullscreen
-- 📁 **Folder Management** - Add multiple folders, recursive subfolder scanning
-- 🌙 **Dark Theme** - Modern dark UI with custom title bar
-- ⌨️ **Keyboard Shortcuts** - Arrow keys for navigation, spacebar for play/pause, F11 for fullscreen
+- Browse photos and videos in masonry layout
+- Smart refresh with thumbnail regeneration
+- Video playback with loop and rotation support
+- Multiple folder management
+- Search, filter, and sort
+- Keyboard shortcuts
+- Dark theme
+- Session persistence
+
+## Installation
+
+Download the latest portable release from [Releases](../../releases) and run `Pixz.exe`. No installation required.
+
+## Supported Formats
+
+**Images**: JPG, PNG, GIF, BMP  
+**Videos**: MP4 (H.264), AVI, MOV, M4V
+
+## Building from Source
+
+```bash
+# Build portable EXE
+create-exe-portable.bat
+```
+
+Requires JDK 21+
+
+## License
+
+See LICENSE.txt
