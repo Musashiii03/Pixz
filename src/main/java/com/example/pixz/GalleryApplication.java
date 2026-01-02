@@ -1,4 +1,4 @@
-package com.example.wingallery;
+package com.example.pixz;
 
 import java.io.IOException;
 
@@ -10,9 +10,15 @@ import javafx.stage.Stage;
 public class GalleryApplication extends Application {
     private boolean isMaximized = true;
     private double restoreX, restoreY, restoreWidth, restoreHeight;
+    private GalleryController controller; // Store controller reference for cleanup
 
     @Override
     public void start(Stage stage) throws IOException {
+        // Add shutdown hook to ensure cleanup on unexpected exit
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutdown hook triggered - forcing cleanup");
+        }));
+        
         // Remove default window decorations
         stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
         stage.setFullScreenExitHint("");
@@ -33,17 +39,25 @@ public class GalleryApplication extends Application {
         scene.getStylesheets().add(getClass().getResource("dark-theme.css").toExternalForm());
 
         // Pass title bar reference to controller
-        GalleryController controller = fxmlLoader.getController();
+        controller = fxmlLoader.getController();
         controller.setCustomTitleBar(titleBar);
 
-        // Set application icon
+        // Set application icon with multiple sizes for better taskbar display
         try {
-            javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                getClass().getResourceAsStream("icon.png")
+            // Load multiple icon sizes - Windows will pick the best one for taskbar
+            // These were extracted from the ICO file
+            stage.getIcons().addAll(
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-1.png")), // 16x16
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-2.png")), // 32x32
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-3.png")), // 48x48
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-4.png")), // 64x64
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-5.png")), // 128x128
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-6.png")) // 256x256
             );
-            stage.getIcons().add(icon);
+            System.out.println("Icon loaded successfully with " + stage.getIcons().size() + " sizes");
         } catch (Exception e) {
-            // Could not load icon
+            System.err.println("Error loading icon: " + e.getMessage());
+            e.printStackTrace();
         }
 
         stage.setMinWidth(800);
@@ -65,7 +79,23 @@ public class GalleryApplication extends Application {
 
         // Save session on window close
         stage.setOnCloseRequest(event -> {
+            System.out.println("Application closing - cleaning up resources...");
+            
+            // Save session first
             controller.saveCurrentSession();
+            
+            // Shutdown controller resources (media players, etc.)
+            controller.shutdown();
+            
+            // Force exit after a short delay to ensure cleanup
+            javafx.animation.PauseTransition exitDelay = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.millis(500));
+            exitDelay.setOnFinished(e -> {
+                System.out.println("Forcing application exit...");
+                javafx.application.Platform.exit();
+                System.exit(0);
+            });
+            exitDelay.play();
         });
 
         stage.show();
@@ -73,60 +103,69 @@ public class GalleryApplication extends Application {
 
     private javafx.scene.layout.HBox createTitleBar(Stage stage) {
         javafx.scene.layout.HBox titleBar = new javafx.scene.layout.HBox();
-        titleBar.setStyle("-fx-background-color: #0b0e14; -fx-padding: 8 10;");
+        titleBar.setStyle("-fx-background-color: #000000; -fx-padding: 0;");
         titleBar.setPrefHeight(35);
+        titleBar.setMinHeight(35);
+        titleBar.setMaxHeight(35);
         titleBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
-        // App icon and title
+        // App icon and title container
+        javafx.scene.layout.HBox leftContainer = new javafx.scene.layout.HBox(8);
+        leftContainer.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        leftContainer.setStyle("-fx-padding: 0 0 0 10;");
+
+        // App icon
         javafx.scene.image.ImageView iconView = new javafx.scene.image.ImageView();
         try {
             javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                getClass().getResourceAsStream("icon.png")
+                    getClass().getResourceAsStream("icon-3.png") // Use 48x48 icon
             );
             iconView.setImage(icon);
-            iconView.setFitWidth(20);
-            iconView.setFitHeight(20);
+            iconView.setFitWidth(16);
+            iconView.setFitHeight(16);
             iconView.setPreserveRatio(true);
             iconView.setSmooth(true);
         } catch (Exception e) {
-            // Could not load icon
+            // Could not load icon, try fallback
+            try {
+                javafx.scene.image.Image icon = new javafx.scene.image.Image(
+                        getClass().getResourceAsStream("icon-1.png"));
+                iconView.setImage(icon);
+                iconView.setFitWidth(16);
+                iconView.setFitHeight(16);
+                iconView.setPreserveRatio(true);
+                iconView.setSmooth(true);
+            } catch (Exception ex) {
+                // No icon available
+            }
         }
-        javafx.scene.layout.HBox iconContainer = new javafx.scene.layout.HBox(iconView);
-        iconContainer.setStyle("-fx-padding: 0 10 0 0;");
-        iconContainer.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
 
-        javafx.scene.control.Label titleLabel = new javafx.scene.control.Label("WinGallery");
-        titleLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px; -fx-font-weight: normal;");
-        titleLabel.setMinWidth(80);
+        javafx.scene.control.Label titleLabel = new javafx.scene.control.Label("Pixz");
+        titleLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 13px; -fx-font-weight: normal;");
+
+        leftContainer.getChildren().addAll(iconView, titleLabel);
 
         // Spacer
         javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
         javafx.scene.layout.HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
 
-        // Window control buttons
-        String buttonStyle = "-fx-background-color: transparent; -fx-text-fill: #ffffff; -fx-font-size: 14px; -fx-padding: 0; -fx-cursor: hand; -fx-min-width: 46px; -fx-max-width: 46px;";
-        String buttonHoverStyle = "-fx-background-color: rgba(255,255,255,0.1); -fx-text-fill: #ffffff; -fx-font-size: 14px; -fx-padding: 0; -fx-cursor: hand; -fx-min-width: 46px; -fx-max-width: 46px;";
-        
+        // Window control buttons - use CSS class for proper styling
         javafx.scene.control.Button minimizeBtn = new javafx.scene.control.Button("─");
-        minimizeBtn.setStyle(buttonStyle);
-        minimizeBtn.setOnMouseEntered(e -> minimizeBtn.setStyle(buttonHoverStyle));
-        minimizeBtn.setOnMouseExited(e -> minimizeBtn.setStyle(buttonStyle));
+        minimizeBtn.getStyleClass().add("title-bar-button");
+        minimizeBtn.setMaxHeight(Double.MAX_VALUE);
         minimizeBtn.setOnAction(e -> stage.setIconified(true));
 
-        javafx.scene.control.Button maximizeBtn = new javafx.scene.control.Button("□");
-        maximizeBtn.setStyle(buttonStyle);
-        maximizeBtn.setOnMouseEntered(e -> maximizeBtn.setStyle(buttonHoverStyle));
-        maximizeBtn.setOnMouseExited(e -> maximizeBtn.setStyle(buttonStyle));
+        javafx.scene.control.Button maximizeBtn = new javafx.scene.control.Button("⬜");
+        maximizeBtn.getStyleClass().add("title-bar-button");
+        maximizeBtn.setMaxHeight(Double.MAX_VALUE);
         maximizeBtn.setOnAction(e -> toggleMaximize(stage));
 
         javafx.scene.control.Button closeBtn = new javafx.scene.control.Button("✕");
-        closeBtn.setStyle(buttonStyle);
-        closeBtn.setOnMouseEntered(e -> closeBtn.setStyle(
-                "-fx-background-color: #e81123; -fx-text-fill: #ffffff; -fx-font-size: 14px; -fx-padding: 0; -fx-cursor: hand; -fx-min-width: 46px; -fx-max-width: 46px;"));
-        closeBtn.setOnMouseExited(e -> closeBtn.setStyle(buttonStyle));
+        closeBtn.getStyleClass().addAll("title-bar-button", "close-button");
+        closeBtn.setMaxHeight(Double.MAX_VALUE);
         closeBtn.setOnAction(e -> stage.close());
 
-        titleBar.getChildren().addAll(iconContainer, titleLabel, spacer, minimizeBtn, maximizeBtn, closeBtn);
+        titleBar.getChildren().addAll(leftContainer, spacer, minimizeBtn, maximizeBtn, closeBtn);
 
         // Make title bar draggable
         final double[] xOffset = { 0 };
@@ -156,7 +195,7 @@ public class GalleryApplication extends Application {
 
     private void toggleMaximize(Stage stage) {
         javafx.geometry.Rectangle2D visualBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-        
+
         if (isMaximized) {
             // Restore to previous size
             stage.setX(restoreX);
@@ -170,7 +209,7 @@ public class GalleryApplication extends Application {
             restoreY = stage.getY();
             restoreWidth = stage.getWidth();
             restoreHeight = stage.getHeight();
-            
+
             // Maximize to visual bounds (respecting taskbar)
             stage.setX(visualBounds.getMinX());
             stage.setY(visualBounds.getMinY());
@@ -178,6 +217,21 @@ public class GalleryApplication extends Application {
             stage.setHeight(visualBounds.getHeight());
             isMaximized = true;
         }
+    }
+
+    @Override
+    public void stop() throws Exception {
+        System.out.println("Application stop() called - final cleanup");
+        
+        // Save session before exit
+        if (controller != null) {
+            controller.saveCurrentSession();
+            controller.shutdown();
+        }
+        
+        super.stop();
+        // Force exit to ensure all threads are terminated
+        System.exit(0);
     }
 
     public static void main(String[] args) {

@@ -1,11 +1,11 @@
 .root {
-    -fx-base: #0b0e14;
-    -fx-background: #0b0e14;
-    -fx-control-inner-background: #0b0e14;
+    -fx-base: #000000;
+    -fx-background: #000000;
+    -fx-control-inner-background: #000000;
     -fx-control-inner-background-alt: derive(-fx-control-inner-background, -2%);
-    -fx-accent: #e6b450;
-    -fx-focus-color: #e6b450;
-    -fx-faint-focus-color: #e6b45022;
+    -fx-accent: #3f4865;
+    -fx-focus-color: #3f4865;
+    -fx-faint-focus-color: #3f486522;
     -fx-text-fill: #ffffff;
 }
 
@@ -136,7 +136,7 @@
 
 .combo-box-popup .list-view {
     -fx-background-color: #2d3142;
-    -fx-border-color: #e6b450;
+    -fx-border-color: #3f4865;
     -fx-border-width: 1;
 }
 
@@ -150,8 +150,8 @@
 }
 
 .combo-box-popup .list-view .list-cell:selected {
-    -fx-background-color: #e6b450;
-    -fx-text-fill: black;
+    -fx-background-color: #3f4865;
+    -fx-text-fill: white;
 }
 
 .combo-box .arrow-button {
@@ -164,7 +164,7 @@
 }
 
 .combo-box:focused {
-    -fx-border-color: #e6b450;
+    -fx-border-color: #3f4865;
     -fx-border-width: 1;
     -fx-border-radius: 6;
 }
@@ -227,4 +227,42 @@
 .media-card:hover {
     -fx-background-color: #1a1a1a;
     -fx-effect: dropshadow(gaussian, rgba(0, 120, 215, 0.6), 10, 0, 0, 3);
+}
+
+/* Title Bar Button Styles */
+.title-bar-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 12px;
+    -fx-padding: 0;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-cursor: hand;
+    -fx-min-width: 46px;
+    -fx-pref-width: 46px;
+    -fx-max-width: 46px;
+    -fx-min-height: 35px;
+    -fx-pref-height: 35px;
+    -fx-max-height: 35px;
+}
+
+.title-bar-button > .text {
+    -fx-fill: #ffffff;
+}
+
+.title-bar-button:hover {
+    -fx-background-color: rgba(255,255,255,0.1);
+}
+
+.title-bar-button:pressed {
+    -fx-background-color: rgba(255,255,255,0.15);
+}
+
+.title-bar-button.close-button:hover {
+    -fx-background-color: #e81123;
+}
+
+.title-bar-button.close-button:pressed {
+    -fx-background-color: #f1707a;
 }

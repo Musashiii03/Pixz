@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.example</groupId>
-    <artifactId>WinGallery</artifactId>
+    <artifactId>Pixz</artifactId>
     <version>1.1.0</version>
-    <name>WinGallery</name>
+    <name>Pixz</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -49,6 +49,11 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.drewnoakes</groupId>
+            <artifactId>metadata-extractor</artifactId>
+            <version>2.19.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -69,7 +74,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.example.wingallery.Launcher</mainClass>
+                            <mainClass>com.example.pixz.Launcher</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -87,7 +92,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.example.wingallery.Launcher</mainClass>
+                                    <mainClass>com.example.pixz.Launcher</mainClass>
                                 </transformer>
                             </transformers>
                             <filters>
@@ -123,7 +128,7 @@
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.example.wingallery.Launcher</mainClass>
+                            <mainClass>com.example.pixz.Launcher</mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>
@@ -142,33 +147,34 @@
                     <execution>
                         <id>msi</id>
                         <configuration>
-                            <name>WinGallery</name>
+                            <name>Pixz</name>
                             <appVersion>1.1.0</appVersion>
-                            <vendor>WinGallery</vendor>
+                            <vendor>Pixz</vendor>
                             <destination>target/installer</destination>
                             <type>MSI</type>
-                            <module>com.example.wingallery/com.example.wingallery.Launcher</module>
+                            <module>com.example.pixz/com.example.pixz.Launcher</module>
                             <runtimeImage>target/app</runtimeImage>
-                            <icon>src/main/resources/com/example/wingallery/icon.png</icon>
+                            <icon>src/main/resources/com/example/pixz/icon.ico</icon>
                             <javaOptions>
                                 <option>-Dfile.encoding=UTF-8</option>
                             </javaOptions>
                             <winDirChooser>true</winDirChooser>
                             <winMenu>true</winMenu>
                             <winShortcut>true</winShortcut>
-                            <winMenuGroup>WinGallery</winMenuGroup>
+                            <winMenuGroup>Pixz</winMenuGroup>
                         </configuration>
                     </execution>
                     <execution>
                         <id>portable</id>
                         <configuration>
-                            <name>WinGallery</name>
+                            <name>Pixz</name>
                             <appVersion>1.1.0</appVersion>
-                            <vendor>WinGallery</vendor>
+                            <vendor>Pixz</vendor>
                             <destination>target/portable</destination>
                             <type>APP_IMAGE</type>
-                            <module>com.example.wingallery/com.example.wingallery.Launcher</module>
+                            <module>com.example.pixz/com.example.pixz.Launcher</module>
                             <runtimeImage>target/app</runtimeImage>
+                            <icon>src/main/resources/com/example/pixz/icon.ico</icon>
                             <javaOptions>
                                 <option>-Dfile.encoding=UTF-8</option>
                             </javaOptions>

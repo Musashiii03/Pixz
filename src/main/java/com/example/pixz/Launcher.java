@@ -1,4 +1,4 @@
-package com.example.wingallery;
+package com.example.pixz;
 
 import javafx.application.Application;
 

@@ -1,4 +1,4 @@
-package com.example.wingallery;
+package com.example.pixz;
 
 import java.io.File;
 import java.lang.ref.WeakReference;

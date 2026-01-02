@@ -1,4 +1,4 @@
-package com.example.wingallery;
+package com.example.pixz;
 
 import java.util.List;
 
@@ -9,13 +9,13 @@ import javafx.scene.layout.Pane;
  * Custom layout pane that arranges children in a uniform grid
  */
 public class MasonryPane extends Pane {
-    private static final double COLUMN_WIDTH = 300; // Larger thumbnails
-    private static final double GAP = 2; // Thin black border between items
+    private static final double CELL_SIZE = 300; // Size of each thumbnail
+    private static final double GAP = 2; // 2px gap between items
     private int numColumns = 3;
 
     public MasonryPane() {
         super();
-        // Set black background so gaps appear as black borders
+        // Set black background so gaps appear as thin lines
         setStyle("-fx-background-color: #000000;");
         // Listen to width changes to recalculate columns
         widthProperty().addListener((obs, oldVal, newVal) -> {
@@ -27,14 +27,9 @@ public class MasonryPane extends Pane {
     private void calculateColumns() {
         double availableWidth = getWidth() - getInsets().getLeft() - getInsets().getRight();
         if (availableWidth > 0) {
-            numColumns = Math.max(1, (int) ((availableWidth + GAP) / (COLUMN_WIDTH + GAP)));
+            // Calculate how many columns fit: (width + gap) / (cellSize + gap)
+            numColumns = Math.max(1, (int) ((availableWidth + GAP) / (CELL_SIZE + GAP)));
         }
-    }
-    
-    private double getActualColumnWidth() {
-        double availableWidth = getWidth() - getInsets().getLeft() - getInsets().getRight();
-        double totalGapWidth = (numColumns - 1) * GAP;
-        return (availableWidth - totalGapWidth) / numColumns;
     }
 
     @Override
@@ -46,14 +41,13 @@ public class MasonryPane extends Pane {
             return;
         }
 
-        double columnWidth = getActualColumnWidth();
         double leftInset = getInsets().getLeft();
         double topInset = getInsets().getTop();
         
         // Track the height of each column
         double[] columnHeights = new double[numColumns];
         
-        // Layout each child
+        // Layout each child in a grid
         for (Node child : managed) {
             // Find the shortest column
             int shortestColumn = 0;
@@ -65,15 +59,15 @@ public class MasonryPane extends Pane {
                 }
             }
             
-            // Calculate position
-            double x = leftInset + shortestColumn * (columnWidth + GAP);
+            // Calculate exact position with gap
+            double x = leftInset + shortestColumn * (CELL_SIZE + GAP);
             double y = topInset + columnHeights[shortestColumn];
             
-            // Position the child
-            child.resizeRelocate(x, y, columnWidth, child.prefHeight(columnWidth));
+            // Position the child as exact square
+            child.resizeRelocate(x, y, CELL_SIZE, CELL_SIZE);
             
-            // Update column height
-            columnHeights[shortestColumn] += child.prefHeight(columnWidth) + GAP;
+            // Update column height: add cell size + gap
+            columnHeights[shortestColumn] += CELL_SIZE + GAP;
         }
         
         // Set the preferred height of the pane to the tallest column
@@ -81,17 +75,17 @@ public class MasonryPane extends Pane {
         for (double height : columnHeights) {
             maxHeight = Math.max(maxHeight, height);
         }
-        setPrefHeight(maxHeight + topInset + getInsets().getBottom());
+        // Subtract one GAP at the end since we don't need gap after last row
+        setPrefHeight(maxHeight - GAP + topInset + getInsets().getBottom());
     }
 
     @Override
     protected double computePrefWidth(double height) {
-        return numColumns * (COLUMN_WIDTH + GAP) - GAP;
+        return numColumns * (CELL_SIZE + GAP) - GAP + getInsets().getLeft() + getInsets().getRight();
     }
 
     @Override
     protected double computePrefHeight(double width) {
-        // This will be calculated during layout
         return getPrefHeight();
     }
 }

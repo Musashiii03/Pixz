@@ -1,4 +1,4 @@
-package com.example.wingallery;
+package com.example.pixz;
 
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
@@ -20,12 +20,12 @@ import javafx.scene.media.MediaView;
  */
 public class ThumbnailGenerator {
     private static final int THUMBNAIL_SIZE = 300; // Larger thumbnails for better visibility
-    
+
     // Bounded thread pool - prevents decode storms
-    private static final ExecutorService thumbnailExecutor = Executors.newFixedThreadPool(4);
-    
-    // Semaphore to limit concurrent thumbnail generation (4 in-flight max)
-    private static final Semaphore generationSemaphore = new Semaphore(4);
+    private static final ExecutorService thumbnailExecutor = Executors.newFixedThreadPool(8);
+
+    // Semaphore to limit concurrent thumbnail generation (8 in-flight max for faster refresh)
+    private static final Semaphore generationSemaphore = new Semaphore(8);
 
     /**
      * Generate thumbnail for an image file with caching
@@ -38,22 +38,46 @@ public class ThumbnailGenerator {
         if (cached != null) {
             return CompletableFuture.completedFuture(cached);
         }
-        
+
         // Generate with throttling
         CompletableFuture<Image> future = new CompletableFuture<>();
-        
+
         thumbnailExecutor.submit(() -> {
             try {
                 generationSemaphore.acquire(); // Throttle concurrent generation
                 try {
-                    // Load at reduced resolution for memory efficiency
-                    // preserveRatio = true to avoid squeezing
-                    // smooth = false for faster loading and less memory
-                    // backgroundLoading = false to ensure image is fully loaded
-                    Image image = new Image(file.toURI().toString(), THUMBNAIL_SIZE, THUMBNAIL_SIZE, true, false, false);
-                    
-                    // Complete with image (even if error, let display code handle it)
-                    future.complete(image);
+                    // Read orientation
+                    int rotation = MediaMetadataUtils.getRotation(file);
+
+                    if (rotation == 0) {
+                        // Normal loading
+                        Image image = new Image(file.toURI().toString(), THUMBNAIL_SIZE, THUMBNAIL_SIZE, true, false,
+                                false);
+
+                        // Check if image loaded successfully
+                        if (image.isError() || image.getWidth() == 0 || image.getHeight() == 0) {
+                            future.complete(null);
+                        } else {
+                            future.complete(image);
+                        }
+                    } else {
+                        // Load and rotate on FX thread
+                        Platform.runLater(() -> {
+                            try {
+                                Image sourceImage = new Image(file.toURI().toString(), THUMBNAIL_SIZE, THUMBNAIL_SIZE,
+                                        true,
+                                        false, false);
+                                javafx.scene.image.ImageView iv = new javafx.scene.image.ImageView(sourceImage);
+                                iv.setRotate(rotation);
+                                SnapshotParameters params = new SnapshotParameters();
+                                params.setFill(javafx.scene.paint.Color.TRANSPARENT);
+                                WritableImage rotated = iv.snapshot(params, null);
+                                future.complete(rotated);
+                            } catch (Exception e) {
+                                future.complete(null);
+                            }
+                        });
+                    }
                 } finally {
                     generationSemaphore.release();
                 }
@@ -64,14 +88,14 @@ public class ThumbnailGenerator {
                 future.complete(null);
             }
         });
-        
+
         // Cache to disk asynchronously (doesn't block thumbnail display)
         future.thenAccept(thumbnail -> {
             if (thumbnail != null) {
                 ThumbnailCache.cacheThumbnail(file, thumbnail);
             }
         });
-        
+
         return future;
     }
 
@@ -86,28 +110,26 @@ public class ThumbnailGenerator {
         if (cached != null) {
             return CompletableFuture.completedFuture(cached);
         }
-        
+
         CompletableFuture<Image> future = new CompletableFuture<>();
-        
+
         // Acquire semaphore before starting generation
         thumbnailExecutor.submit(() -> {
             try {
                 generationSemaphore.acquire(); // Throttle concurrent generation
-                
+
                 // Try JavaFX MediaPlayer (bundled with app)
                 tryJavaFXThumbnail(file, future);
-                
-                // Add timeout fallback to placeholder (5 seconds total)
+
+                // Add timeout fallback to placeholder (1.5 seconds - balance between speed and quality)
                 thumbnailExecutor.submit(() -> {
                     try {
-                        Thread.sleep(5000);
+                        Thread.sleep(1500);
                         if (!future.isDone()) {
+                            System.out.println("Video thumbnail generation timed out for: " + file.getName());
                             Image placeholder = createPlaceholderImage();
                             future.complete(placeholder);
-                            // Cache the placeholder too
-                            if (placeholder != null) {
-                                ThumbnailCache.cacheThumbnail(file, placeholder);
-                            }
+                            // Don't cache placeholder - will be retried on refresh
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
@@ -122,64 +144,37 @@ public class ThumbnailGenerator {
                 Thread.currentThread().interrupt();
                 future.complete(createPlaceholderImage());
             } catch (Exception e) {
+                System.out.println("Error generating video thumbnail for " + file.getName() + ": " + e.getMessage());
                 // Ensure future is completed even on unexpected errors
                 if (!future.isDone()) {
                     future.complete(createPlaceholderImage());
                 }
             }
         });
-        
+
         // Cache result and release semaphore when complete
         future.whenComplete((thumbnail, throwable) -> {
             // Release semaphore when done (success or failure)
             generationSemaphore.release();
-            
+
             // Cache the result
             if (thumbnail != null) {
                 ThumbnailCache.cacheThumbnail(file, thumbnail);
             }
         });
-        
+
         return future;
     }
-    
+
     /**
      * Create a placeholder image for videos that can't generate thumbnails
+     * Returns null to indicate no thumbnail - UI will show text instead
      */
     private static Image createPlaceholderImage() {
-        try {
-            // Create a simple colored rectangle as placeholder
-            javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
-            javafx.scene.canvas.GraphicsContext gc = canvas.getGraphicsContext2D();
-            
-            // Dark gray background
-            gc.setFill(javafx.scene.paint.Color.rgb(60, 60, 60));
-            gc.fillRect(0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE);
-            
-            // Play icon
-            gc.setFill(javafx.scene.paint.Color.rgb(200, 200, 200));
-            double centerX = THUMBNAIL_SIZE / 2.0;
-            double centerY = THUMBNAIL_SIZE / 2.0;
-            double size = 40; // Smaller for reduced thumbnail size
-            
-            // Triangle play button
-            gc.fillPolygon(
-                new double[]{centerX - size/2, centerX + size/2, centerX - size/2},
-                new double[]{centerY - size/2, centerY, centerY + size/2},
-                3
-            );
-            
-            // Take snapshot
-            SnapshotParameters params = new SnapshotParameters();
-            params.setFill(javafx.scene.paint.Color.TRANSPARENT);
-            WritableImage placeholder = canvas.snapshot(params, null);
-            
-            return placeholder;
-        } catch (Exception e) {
-            return null;
-        }
+        // Return null instead of creating a placeholder image
+        // The UI will display "No thumbnail generated" text
+        return null;
     }
-    
 
     /**
      * Try to generate thumbnail using JavaFX MediaPlayer
@@ -188,14 +183,15 @@ public class ThumbnailGenerator {
         Platform.runLater(() -> {
             MediaPlayer mediaPlayer = null;
             try {
+                System.out.println("Attempting JavaFX thumbnail for: " + file.getName());
                 Media media = new Media(file.toURI().toString());
                 mediaPlayer = new MediaPlayer(media);
                 MediaPlayer finalMediaPlayer = mediaPlayer;
-                
+
                 // Flag to track if snapshot was taken
-                final boolean[] snapshotTaken = {false};
-                final MediaView[] mediaViewHolder = {null};
-                
+                final boolean[] snapshotTaken = { false };
+                final MediaView[] mediaViewHolder = { null };
+
                 mediaPlayer.setOnReady(() -> {
                     try {
                         // Create MediaView only when ready
@@ -203,31 +199,57 @@ public class ThumbnailGenerator {
                         mediaView.setFitWidth(THUMBNAIL_SIZE);
                         mediaView.setFitHeight(THUMBNAIL_SIZE);
                         mediaView.setPreserveRatio(true); // Don't squeeze, will be cropped in display
+
+                        // Apply rotation if needed
+                        int rotation = MediaMetadataUtils.getRotation(file);
+                        mediaView.setRotate(rotation);
+
                         mediaViewHolder[0] = mediaView;
+
+                        // Seek to 1 second or 10% of duration to avoid black intro frames
+                        javafx.util.Duration duration = finalMediaPlayer.getTotalDuration();
+                        javafx.util.Duration seekTime;
+                        if (duration != null && duration.toSeconds() > 2) {
+                            // Seek to 10% of video or 1 second, whichever is less
+                            double seekSeconds = Math.min(duration.toSeconds() * 0.1, 1.0);
+                            seekTime = javafx.util.Duration.seconds(seekSeconds);
+                        } else {
+                            // Short video, seek to 0.5 seconds
+                            seekTime = javafx.util.Duration.seconds(0.5);
+                        }
                         
-                        // Try to take snapshot immediately without seeking
+                        finalMediaPlayer.seek(seekTime);
+                        
+                        // Wait a bit after seeking for frame to load, then take snapshot
                         Platform.runLater(() -> {
-                            try {
-                                if (!snapshotTaken[0] && mediaViewHolder[0] != null) {
-                                    snapshotTaken[0] = true;
-                                    SnapshotParameters params = new SnapshotParameters();
-                                    WritableImage snapshot = mediaViewHolder[0].snapshot(params, null);
-                                    
-                                    if (snapshot != null && snapshot.getWidth() > 0 && snapshot.getHeight() > 0) {
-                                        future.complete(snapshot);
-                                        finalMediaPlayer.stop();
-                                        finalMediaPlayer.dispose();
-                                    } else {
-                                        future.complete(createPlaceholderImage());
-                                        finalMediaPlayer.stop();
-                                        finalMediaPlayer.dispose();
+                            // Add small delay to ensure frame is rendered after seek
+                            javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
+                                javafx.util.Duration.millis(200));
+                            delay.setOnFinished(e -> {
+                                try {
+                                    if (!snapshotTaken[0] && mediaViewHolder[0] != null) {
+                                        snapshotTaken[0] = true;
+                                        SnapshotParameters params = new SnapshotParameters();
+                                        params.setFill(javafx.scene.paint.Color.BLACK);
+                                        WritableImage snapshot = mediaViewHolder[0].snapshot(params, null);
+
+                                        if (snapshot != null && snapshot.getWidth() > 0 && snapshot.getHeight() > 0) {
+                                            future.complete(snapshot);
+                                            finalMediaPlayer.stop();
+                                            finalMediaPlayer.dispose();
+                                        } else {
+                                            future.complete(createPlaceholderImage());
+                                            finalMediaPlayer.stop();
+                                            finalMediaPlayer.dispose();
+                                        }
                                     }
+                                } catch (Exception ex) {
+                                    future.complete(createPlaceholderImage());
+                                    finalMediaPlayer.stop();
+                                    finalMediaPlayer.dispose();
                                 }
-                            } catch (Exception ex) {
-                                future.complete(createPlaceholderImage());
-                                finalMediaPlayer.stop();
-                                finalMediaPlayer.dispose();
-                            }
+                            });
+                            delay.play();
                         });
                     } catch (Exception e) {
                         finalMediaPlayer.stop();
@@ -237,7 +259,7 @@ public class ThumbnailGenerator {
                         }
                     }
                 });
-                
+
                 mediaPlayer.setOnError(() -> {
                     finalMediaPlayer.stop();
                     finalMediaPlayer.dispose();
@@ -245,10 +267,11 @@ public class ThumbnailGenerator {
                         future.complete(createPlaceholderImage());
                     }
                 });
-                
+
                 // Timeout fallback (4 seconds for JavaFX attempt)
                 MediaPlayer timeoutPlayer = mediaPlayer;
-                javafx.animation.PauseTransition timeout = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(4));
+                javafx.animation.PauseTransition timeout = new javafx.animation.PauseTransition(
+                        javafx.util.Duration.seconds(4));
                 timeout.setOnFinished(e -> {
                     if (!future.isDone()) {
                         timeoutPlayer.stop();
@@ -257,7 +280,7 @@ public class ThumbnailGenerator {
                     }
                 });
                 timeout.play();
-                
+
             } catch (Exception e) {
                 if (mediaPlayer != null) {
                     mediaPlayer.stop();
@@ -275,9 +298,9 @@ public class ThumbnailGenerator {
      */
     public static boolean isImageFile(File file) {
         String name = file.getName().toLowerCase();
-        return name.endsWith(".jpg") || name.endsWith(".jpeg") || 
-               name.endsWith(".png") || name.endsWith(".gif") || 
-               name.endsWith(".bmp");
+        return name.endsWith(".jpg") || name.endsWith(".jpeg") ||
+                name.endsWith(".png") || name.endsWith(".gif") ||
+                name.endsWith(".bmp");
     }
 
     /**
@@ -285,15 +308,37 @@ public class ThumbnailGenerator {
      */
     public static boolean isVideoFile(File file) {
         String name = file.getName().toLowerCase();
-        return name.endsWith(".mp4") || name.endsWith(".avi") || 
-               name.endsWith(".mov") || name.endsWith(".mkv") ||
-               name.endsWith(".m4v") || name.endsWith(".flv");
+        return name.endsWith(".mp4") || name.endsWith(".avi") ||
+                name.endsWith(".mov") || name.endsWith(".mkv") ||
+                name.endsWith(".m4v") || name.endsWith(".flv");
     }
-    
+
     /**
      * Shutdown the executor service (call on app exit)
+     * Forces immediate shutdown of all thumbnail generation threads
      */
     public static void shutdown() {
-        thumbnailExecutor.shutdown();
+        System.out.println("Shutting down thumbnail generator...");
+        try {
+            // Try graceful shutdown first
+            thumbnailExecutor.shutdown();
+            
+            // Wait up to 2 seconds for tasks to complete
+            if (!thumbnailExecutor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                System.out.println("Forcing thumbnail executor shutdown...");
+                // Force shutdown if tasks don't complete
+                thumbnailExecutor.shutdownNow();
+                
+                // Wait a bit more for forced shutdown
+                if (!thumbnailExecutor.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)) {
+                    System.err.println("Thumbnail executor did not terminate");
+                }
+            }
+            System.out.println("Thumbnail generator shutdown complete");
+        } catch (InterruptedException e) {
+            System.err.println("Shutdown interrupted, forcing...");
+            thumbnailExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 }
