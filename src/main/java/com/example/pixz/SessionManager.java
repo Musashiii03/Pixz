@@ -16,14 +16,14 @@ import java.util.Set;
 public class SessionManager {
     private static final String SESSION_FILE_NAME = "wingallery-session.txt";
     private static final String APP_DIR_NAME = ".wingallery";
-    
+
     /**
      * Get the session file path in user's home directory
      */
     private static Path getSessionFilePath() {
         String userHome = System.getProperty("user.home");
         Path appDir = Paths.get(userHome, APP_DIR_NAME);
-        
+
         // Create app directory if it doesn't exist
         try {
             if (!Files.exists(appDir)) {
@@ -32,16 +32,16 @@ public class SessionManager {
         } catch (IOException e) {
             // Failed to create directory
         }
-        
+
         return appDir.resolve(SESSION_FILE_NAME);
     }
-    
+
     /**
      * Save folder paths to session file
      */
     public static void saveSession(Set<String> folderPaths) {
         Path sessionFile = getSessionFilePath();
-        
+
         try (BufferedWriter writer = Files.newBufferedWriter(sessionFile)) {
             for (String folderPath : folderPaths) {
                 // Only save folders that still exist
@@ -51,21 +51,22 @@ public class SessionManager {
                 }
             }
         } catch (IOException e) {
-            // Failed to save session
+            System.err.println("Failed to save session: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-    
+
     /**
      * Load folder paths from session file
      */
     public static Set<String> loadSession() {
         Set<String> folderPaths = new LinkedHashSet<>();
         Path sessionFile = getSessionFilePath();
-        
+
         if (!Files.exists(sessionFile)) {
             return folderPaths;
         }
-        
+
         try (BufferedReader reader = Files.newBufferedReader(sessionFile)) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -81,10 +82,10 @@ public class SessionManager {
         } catch (IOException e) {
             // Failed to load session
         }
-        
+
         return folderPaths;
     }
-    
+
     /**
      * Clear the session file
      */

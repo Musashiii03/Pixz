@@ -10,9 +10,15 @@ import javafx.stage.Stage;
 public class GalleryApplication extends Application {
     private boolean isMaximized = true;
     private double restoreX, restoreY, restoreWidth, restoreHeight;
+    private GalleryController controller; // Store controller reference for cleanup
 
     @Override
     public void start(Stage stage) throws IOException {
+        // Add shutdown hook to ensure cleanup on unexpected exit
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutdown hook triggered - forcing cleanup");
+        }));
+        
         // Remove default window decorations
         stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
         stage.setFullScreenExitHint("");
@@ -33,7 +39,7 @@ public class GalleryApplication extends Application {
         scene.getStylesheets().add(getClass().getResource("dark-theme.css").toExternalForm());
 
         // Pass title bar reference to controller
-        GalleryController controller = fxmlLoader.getController();
+        controller = fxmlLoader.getController();
         controller.setCustomTitleBar(titleBar);
 
         // Set application icon with multiple sizes for better taskbar display
@@ -41,12 +47,12 @@ public class GalleryApplication extends Application {
             // Load multiple icon sizes - Windows will pick the best one for taskbar
             // These were extracted from the ICO file
             stage.getIcons().addAll(
-                new javafx.scene.image.Image(getClass().getResourceAsStream("icon-1.png")), // 16x16
-                new javafx.scene.image.Image(getClass().getResourceAsStream("icon-2.png")), // 32x32
-                new javafx.scene.image.Image(getClass().getResourceAsStream("icon-3.png")), // 48x48
-                new javafx.scene.image.Image(getClass().getResourceAsStream("icon-4.png")), // 64x64
-                new javafx.scene.image.Image(getClass().getResourceAsStream("icon-5.png")), // 128x128
-                new javafx.scene.image.Image(getClass().getResourceAsStream("icon-6.png"))  // 256x256
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-1.png")), // 16x16
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-2.png")), // 32x32
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-3.png")), // 48x48
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-4.png")), // 64x64
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-5.png")), // 128x128
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-6.png")) // 256x256
             );
             System.out.println("Icon loaded successfully with " + stage.getIcons().size() + " sizes");
         } catch (Exception e) {
@@ -73,7 +79,23 @@ public class GalleryApplication extends Application {
 
         // Save session on window close
         stage.setOnCloseRequest(event -> {
+            System.out.println("Application closing - cleaning up resources...");
+            
+            // Save session first
             controller.saveCurrentSession();
+            
+            // Shutdown controller resources (media players, etc.)
+            controller.shutdown();
+            
+            // Force exit after a short delay to ensure cleanup
+            javafx.animation.PauseTransition exitDelay = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.millis(500));
+            exitDelay.setOnFinished(e -> {
+                System.out.println("Forcing application exit...");
+                javafx.application.Platform.exit();
+                System.exit(0);
+            });
+            exitDelay.play();
         });
 
         stage.show();
@@ -91,12 +113,12 @@ public class GalleryApplication extends Application {
         javafx.scene.layout.HBox leftContainer = new javafx.scene.layout.HBox(8);
         leftContainer.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         leftContainer.setStyle("-fx-padding: 0 0 0 10;");
-        
+
         // App icon
         javafx.scene.image.ImageView iconView = new javafx.scene.image.ImageView();
         try {
             javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                getClass().getResourceAsStream("icon-3.png") // Use 48x48 icon
+                    getClass().getResourceAsStream("icon-3.png") // Use 48x48 icon
             );
             iconView.setImage(icon);
             iconView.setFitWidth(16);
@@ -107,8 +129,7 @@ public class GalleryApplication extends Application {
             // Could not load icon, try fallback
             try {
                 javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                    getClass().getResourceAsStream("icon-1.png")
-                );
+                        getClass().getResourceAsStream("icon-1.png"));
                 iconView.setImage(icon);
                 iconView.setFitWidth(16);
                 iconView.setFitHeight(16);
@@ -121,7 +142,7 @@ public class GalleryApplication extends Application {
 
         javafx.scene.control.Label titleLabel = new javafx.scene.control.Label("Pixz");
         titleLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 13px; -fx-font-weight: normal;");
-        
+
         leftContainer.getChildren().addAll(iconView, titleLabel);
 
         // Spacer
@@ -174,7 +195,7 @@ public class GalleryApplication extends Application {
 
     private void toggleMaximize(Stage stage) {
         javafx.geometry.Rectangle2D visualBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-        
+
         if (isMaximized) {
             // Restore to previous size
             stage.setX(restoreX);
@@ -188,7 +209,7 @@ public class GalleryApplication extends Application {
             restoreY = stage.getY();
             restoreWidth = stage.getWidth();
             restoreHeight = stage.getHeight();
-            
+
             // Maximize to visual bounds (respecting taskbar)
             stage.setX(visualBounds.getMinX());
             stage.setY(visualBounds.getMinY());
@@ -196,6 +217,21 @@ public class GalleryApplication extends Application {
             stage.setHeight(visualBounds.getHeight());
             isMaximized = true;
         }
+    }
+
+    @Override
+    public void stop() throws Exception {
+        System.out.println("Application stop() called - final cleanup");
+        
+        // Save session before exit
+        if (controller != null) {
+            controller.saveCurrentSession();
+            controller.shutdown();
+        }
+        
+        super.stop();
+        // Force exit to ensure all threads are terminated
+        System.exit(0);
     }
 
     public static void main(String[] args) {
