@@ -25,10 +25,12 @@
                         <Button fx:id="videosButton" text="Videos" onAction="#onFilterVideos" style="-fx-background-color: #2d3142; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
                     </HBox>
                 </HBox>
-                <!-- Folder Filter Buttons -->
-                <HBox fx:id="folderFilterButtons" spacing="8" alignment="CENTER_LEFT" style="-fx-padding: 10 0 0 0;">
-                    <Button fx:id="allFoldersButton" text="All Folders" onAction="#onAllFoldersClick" style="-fx-background-color: #3f4865; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
-                </HBox>
+                <!-- Folder Filter Buttons (Horizontally Scrollable, no visible scrollbar) -->
+                <ScrollPane fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="NEVER" style="-fx-background: transparent; -fx-background-color: transparent; -fx-padding: 10 0 15 0;" pannable="true">
+                    <HBox fx:id="folderFilterButtons" spacing="8" alignment="CENTER_LEFT">
+                        <Button fx:id="allFoldersButton" text="All Folders" onAction="#onAllFoldersClick" style="-fx-background-color: #3f4865; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                    </HBox>
+                </ScrollPane>
 
                 <HBox alignment="CENTER_LEFT" spacing="10">
                     <Label fx:id="itemCountLabel" text="0 items" style="-fx-text-fill: #7a7d8a; -fx-font-size: 14px;"/>

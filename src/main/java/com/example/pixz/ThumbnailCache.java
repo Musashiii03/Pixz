@@ -96,7 +96,7 @@ public class ThumbnailCache {
             try {
                 // Load cached thumbnail with size constraint (should already be 300x300, but
                 // enforce it)
-                Image image = new Image(cachedFile.toUri().toString(), 300, 300, false, false, true);
+                Image image = new Image(cachedFile.toUri().toString(), 300, 300, true, false, true);
 
                 // Store in memory cache for next time
                 memoryCache.put(cacheKey, new WeakReference<>(image));
@@ -135,37 +135,27 @@ public class ThumbnailCache {
             int blue = argb & 0xFF;
 
             // Check if it's APPROXIMATELY placeholder gray (60,60,60)
-            // Allow tolerance for JPEG compression artifacts (e.g. 61, 59, 60)
-            int tolerance = 10;
+            // Allow wider tolerance for different placeholder shades
+            int tolerance = 20; // Increased from 10
             boolean isGrayPlaceholder = (Math.abs(red - 60) <= tolerance &&
                     Math.abs(green - 60) <= tolerance &&
                     Math.abs(blue - 60) <= tolerance);
 
             if (isGrayPlaceholder) {
                 System.out.println("Identified gray placeholder: R=" + red + " G=" + green + " B=" + blue);
+                return true;
             }
 
-            if (isGrayPlaceholder) {
-                System.out.println("Identified gray placeholder: R=" + red + " G=" + green + " B=" + blue);
+            // Also check for darker gray/black placeholders
+            boolean isDarkPlaceholder = (red < 80 && green < 80 && blue < 80 &&
+                    Math.abs(red - green) < 10 && Math.abs(green - blue) < 10);
+            
+            if (isDarkPlaceholder) {
+                System.out.println("Identified dark placeholder: R=" + red + " G=" + green + " B=" + blue);
+                return true;
             }
 
-            // For black, check multiple points to ensure it's uniform (not just a dark
-            // video frame)
-            if (red < 5 && green < 5 && blue < 5) {
-                // Check corners and center - if all are black, it's likely a placeholder
-                int topLeft = image.getPixelReader().getArgb(10, 10);
-                int topRight = image.getPixelReader().getArgb((int) image.getWidth() - 10, 10);
-                int bottomLeft = image.getPixelReader().getArgb(10, (int) image.getHeight() - 10);
-                int bottomRight = image.getPixelReader().getArgb((int) image.getWidth() - 10,
-                        (int) image.getHeight() - 10);
-
-                boolean allBlack = isBlackPixel(topLeft) && isBlackPixel(topRight) &&
-                        isBlackPixel(bottomLeft) && isBlackPixel(bottomRight);
-
-                return allBlack;
-            }
-
-            return isGrayPlaceholder;
+            return false;
         } catch (Exception e) {
             return false;
         }
