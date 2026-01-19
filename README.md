@@ -22,15 +22,6 @@ Download the latest portable release from [Releases](../../releases) and run `Pi
 **Images**: JPG, PNG, GIF, BMP  
 **Videos**: MP4 (H.264), AVI, MOV, M4V
 
-## Building from Source
-
-```bash
-# Build portable EXE
-create-exe-portable.bat
-```
-
-Requires JDK 21+
-
 ## License
 
 See LICENSE.txt
