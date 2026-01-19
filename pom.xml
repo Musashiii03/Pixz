@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>Pixz</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <name>Pixz</name>
 
     <properties>
@@ -148,7 +148,7 @@
                         <id>msi</id>
                         <configuration>
                             <name>Pixz</name>
-                            <appVersion>1.1.0</appVersion>
+                            <appVersion>1.2.0</appVersion>
                             <vendor>Pixz</vendor>
                             <destination>target/installer</destination>
                             <type>MSI</type>
@@ -168,7 +168,7 @@
                         <id>portable</id>
                         <configuration>
                             <name>Pixz</name>
-                            <appVersion>1.1.0</appVersion>
+                            <appVersion>1.2.0</appVersion>
                             <vendor>Pixz</vendor>
                             <destination>target/portable</destination>
                             <type>APP_IMAGE</type>

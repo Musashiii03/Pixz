@@ -23,9 +23,9 @@ echo Creating portable app with jpackage...
 jpackage ^
   --type app-image ^
   --name Pixz ^
-  --app-version 1.1.0 ^
+  --app-version 1.2.0 ^
   --input target ^
-  --main-jar Pixz-1.1.0.jar ^
+  --main-jar Pixz-1.2.0.jar ^
   --main-class com.example.pixz.Launcher ^
   --dest target\Pixz-Portable-EXE ^
   --icon src\main\resources\com\example\pixz\pixz_256x256.ico ^
@@ -43,7 +43,7 @@ if %ERRORLEVEL% NEQ 0 (
 REM Step 4: Create README in the Pixz folder
 echo Creating README...
 (
-echo Pixz - Photo and Video Gallery v1.1.0
+echo Pixz - Photo and Video Gallery v1.2.0
 echo =====================================
 echo.
 echo This is a portable version - no installation required!
@@ -76,7 +76,7 @@ echo No need to install Java separately!
 REM Step 5: Create ZIP
 echo Creating ZIP archive...
 cd target\Pixz-Portable-EXE
-powershell -Command "Compress-Archive -Path Pixz -DestinationPath ..\Pixz-1.1.0-Portable.zip -Force"
+powershell -Command "Compress-Archive -Path Pixz -DestinationPath ..\Pixz-1.2.0-Portable.zip -Force"
 cd ..\..
 
 echo.
@@ -88,7 +88,7 @@ echo Portable EXE release created at:
 echo   target\Pixz-Portable-EXE\Pixz\
 echo.
 echo ZIP archive created at:
-echo   target\Pixz-1.1.0-Portable.zip
+echo   target\Pixz-1.2.0-Portable.zip
 echo.
 echo Contents:
 echo - Pixz.exe (main executable)
@@ -96,7 +96,7 @@ echo - Java runtime (bundled, no installation needed)
 echo - All dependencies included
 echo.
 echo To distribute:
-echo 1. Share target\Pixz-1.1.0-Portable.zip
+echo 1. Share target\Pixz-1.2.0-Portable.zip
 echo 2. Users extract and run Pixz.exe
 echo 3. No Java installation required!
 echo.
