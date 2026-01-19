@@ -28,7 +28,7 @@ jpackage ^
   --main-jar Pixz-1.1.0.jar ^
   --main-class com.example.pixz.Launcher ^
   --dest target\Pixz-Portable-EXE ^
-  --icon src\main\resources\com\example\pixz\icon.ico ^
+  --icon src\main\resources\com\example\pixz\pixz_256x256.ico ^
   --java-options "-Dfile.encoding=UTF-8" ^
   --vendor "Pixz" ^
   --description "Photo and Video Gallery"

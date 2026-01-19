@@ -142,16 +142,16 @@ public class ThumbnailCache {
                     Math.abs(blue - 60) <= tolerance);
 
             if (isGrayPlaceholder) {
-                System.out.println("Identified gray placeholder: R=" + red + " G=" + green + " B=" + blue);
+
                 return true;
             }
 
             // Also check for darker gray/black placeholders
             boolean isDarkPlaceholder = (red < 80 && green < 80 && blue < 80 &&
                     Math.abs(red - green) < 10 && Math.abs(green - blue) < 10);
-            
+
             if (isDarkPlaceholder) {
-                System.out.println("Identified dark placeholder: R=" + red + " G=" + green + " B=" + blue);
+
                 return true;
             }
 
@@ -239,11 +239,10 @@ public class ThumbnailCache {
         // Remove from disk cache
         Path cachedFile = cacheDir.resolve(cacheKey);
         try {
-            boolean deleted = Files.deleteIfExists(cachedFile);
-            System.out.println(
-                    "Removing cached thumbnail for " + file.getName() + ": " + (deleted ? "DELETED" : "NOT FOUND"));
+            Files.deleteIfExists(cachedFile);
+
         } catch (IOException ignored) {
-            System.out.println("Error removing cached thumbnail for " + file.getName());
+
         }
     }
 

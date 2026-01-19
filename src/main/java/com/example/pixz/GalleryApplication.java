@@ -16,9 +16,9 @@ public class GalleryApplication extends Application {
     public void start(Stage stage) throws IOException {
         // Add shutdown hook to ensure cleanup on unexpected exit
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Shutdown hook triggered - forcing cleanup");
+
         }));
-        
+
         // Remove default window decorations
         stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
         stage.setFullScreenExitHint("");
@@ -44,17 +44,19 @@ public class GalleryApplication extends Application {
 
         // Set application icon with multiple sizes for better taskbar display
         try {
-            // Load multiple icon sizes - Windows will pick the best one for taskbar
-            // These were extracted from the ICO file
+            // Load multiple PNG icon sizes - prioritize larger sizes first for better Windows taskbar display
             stage.getIcons().addAll(
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-1.png")), // 16x16
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-2.png")), // 32x32
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-3.png")), // 48x48
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-4.png")), // 64x64
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-5.png")), // 128x128
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("icon-6.png")) // 256x256
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_512x512.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_256x256.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_128x128.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_96x96.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_64x64.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_48x48.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_32x32.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_24x24.png")),
+                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_16x16.png"))
             );
-            System.out.println("Icon loaded successfully with " + stage.getIcons().size() + " sizes");
+
         } catch (Exception e) {
             System.err.println("Error loading icon: " + e.getMessage());
             e.printStackTrace();
@@ -79,19 +81,18 @@ public class GalleryApplication extends Application {
 
         // Save session on window close
         stage.setOnCloseRequest(event -> {
-            System.out.println("Application closing - cleaning up resources...");
-            
+
             // Save session first
             controller.saveCurrentSession();
-            
+
             // Shutdown controller resources (media players, etc.)
             controller.shutdown();
-            
+
             // Force exit after a short delay to ensure cleanup
             javafx.animation.PauseTransition exitDelay = new javafx.animation.PauseTransition(
                     javafx.util.Duration.millis(500));
             exitDelay.setOnFinished(e -> {
-                System.out.println("Forcing application exit...");
+
                 javafx.application.Platform.exit();
                 System.exit(0);
             });
@@ -117,26 +118,28 @@ public class GalleryApplication extends Application {
         // App icon
         javafx.scene.image.ImageView iconView = new javafx.scene.image.ImageView();
         try {
+            // Use 64x64 source for better quality when scaled to 20x20
             javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                    getClass().getResourceAsStream("icon-3.png") // Use 48x48 icon
+                    getClass().getResourceAsStream("pixz_64x64.png")
             );
             iconView.setImage(icon);
-            iconView.setFitWidth(16);
-            iconView.setFitHeight(16);
+            iconView.setFitWidth(20);
+            iconView.setFitHeight(20);
             iconView.setPreserveRatio(true);
-            iconView.setSmooth(true);
+            iconView.setSmooth(true); // Keep smooth for downscaling
         } catch (Exception e) {
             // Could not load icon, try fallback
             try {
                 javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                        getClass().getResourceAsStream("icon-1.png"));
+                        getClass().getResourceAsStream("pixz_48x48.png"));
                 iconView.setImage(icon);
-                iconView.setFitWidth(16);
-                iconView.setFitHeight(16);
+                iconView.setFitWidth(20);
+                iconView.setFitHeight(20);
                 iconView.setPreserveRatio(true);
                 iconView.setSmooth(true);
             } catch (Exception ex) {
                 // No icon available
+                System.err.println("Could not load any icon: " + ex.getMessage());
             }
         }
 
@@ -221,14 +224,13 @@ public class GalleryApplication extends Application {
 
     @Override
     public void stop() throws Exception {
-        System.out.println("Application stop() called - final cleanup");
-        
+
         // Save session before exit
         if (controller != null) {
             controller.saveCurrentSession();
             controller.shutdown();
         }
-        
+
         super.stop();
         // Force exit to ensure all threads are terminated
         System.exit(0);

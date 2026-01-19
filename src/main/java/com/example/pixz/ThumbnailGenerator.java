@@ -24,7 +24,8 @@ public class ThumbnailGenerator {
     // Bounded thread pool - prevents decode storms
     private static final ExecutorService thumbnailExecutor = Executors.newFixedThreadPool(8);
 
-    // Semaphore to limit concurrent thumbnail generation (8 in-flight max for faster refresh)
+    // Semaphore to limit concurrent thumbnail generation (8 in-flight max for
+    // faster refresh)
     private static final Semaphore generationSemaphore = new Semaphore(8);
 
     /**
@@ -121,12 +122,13 @@ public class ThumbnailGenerator {
                 // Try JavaFX MediaPlayer (bundled with app)
                 tryJavaFXThumbnail(file, future);
 
-                // Add timeout fallback to placeholder (1.5 seconds - balance between speed and quality)
+                // Add timeout fallback to placeholder (1.5 seconds - balance between speed and
+                // quality)
                 thumbnailExecutor.submit(() -> {
                     try {
                         Thread.sleep(1500);
                         if (!future.isDone()) {
-                            System.out.println("Video thumbnail generation timed out for: " + file.getName());
+
                             Image placeholder = createPlaceholderImage();
                             future.complete(placeholder);
                             // Don't cache placeholder - will be retried on refresh
@@ -144,7 +146,7 @@ public class ThumbnailGenerator {
                 Thread.currentThread().interrupt();
                 future.complete(createPlaceholderImage());
             } catch (Exception e) {
-                System.out.println("Error generating video thumbnail for " + file.getName() + ": " + e.getMessage());
+
                 // Ensure future is completed even on unexpected errors
                 if (!future.isDone()) {
                     future.complete(createPlaceholderImage());
@@ -183,7 +185,7 @@ public class ThumbnailGenerator {
         Platform.runLater(() -> {
             MediaPlayer mediaPlayer = null;
             try {
-                System.out.println("Attempting JavaFX thumbnail for: " + file.getName());
+
                 Media media = new Media(file.toURI().toString());
                 mediaPlayer = new MediaPlayer(media);
                 MediaPlayer finalMediaPlayer = mediaPlayer;
@@ -217,14 +219,14 @@ public class ThumbnailGenerator {
                             // Short video, seek to 0.5 seconds
                             seekTime = javafx.util.Duration.seconds(0.5);
                         }
-                        
+
                         finalMediaPlayer.seek(seekTime);
-                        
+
                         // Wait a bit after seeking for frame to load, then take snapshot
                         Platform.runLater(() -> {
                             // Add small delay to ensure frame is rendered after seek
                             javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
-                                javafx.util.Duration.millis(200));
+                                    javafx.util.Duration.millis(200));
                             delay.setOnFinished(e -> {
                                 try {
                                     if (!snapshotTaken[0] && mediaViewHolder[0] != null) {
@@ -318,23 +320,23 @@ public class ThumbnailGenerator {
      * Forces immediate shutdown of all thumbnail generation threads
      */
     public static void shutdown() {
-        System.out.println("Shutting down thumbnail generator...");
+
         try {
             // Try graceful shutdown first
             thumbnailExecutor.shutdown();
-            
+
             // Wait up to 2 seconds for tasks to complete
             if (!thumbnailExecutor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
-                System.out.println("Forcing thumbnail executor shutdown...");
+
                 // Force shutdown if tasks don't complete
                 thumbnailExecutor.shutdownNow();
-                
+
                 // Wait a bit more for forced shutdown
                 if (!thumbnailExecutor.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS)) {
                     System.err.println("Thumbnail executor did not terminate");
                 }
             }
-            System.out.println("Thumbnail generator shutdown complete");
+
         } catch (InterruptedException e) {
             System.err.println("Shutdown interrupted, forcing...");
             thumbnailExecutor.shutdownNow();
