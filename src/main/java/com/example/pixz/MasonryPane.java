@@ -35,7 +35,7 @@ public class MasonryPane extends Pane {
     @Override
     protected void layoutChildren() {
         calculateColumns();
-        
+
         List<Node> managed = getManagedChildren();
         if (managed.isEmpty()) {
             return;
@@ -44,9 +44,16 @@ public class MasonryPane extends Pane {
         double leftInset = getInsets().getLeft();
         double topInset = getInsets().getTop();
         
+        // Calculate total grid width
+        double gridWidth = numColumns * (CELL_SIZE + GAP) - GAP;
+        double availableWidth = getWidth() - getInsets().getLeft() - getInsets().getRight();
+        
+        // Center the grid by adding offset to left position
+        double leftOffset = leftInset + Math.max(0, (availableWidth - gridWidth) / 2);
+
         // Track the height of each column
         double[] columnHeights = new double[numColumns];
-        
+
         // Layout each child in a grid
         for (Node child : managed) {
             // Find the shortest column
@@ -58,18 +65,18 @@ public class MasonryPane extends Pane {
                     shortestColumn = i;
                 }
             }
-            
-            // Calculate exact position with gap
-            double x = leftInset + shortestColumn * (CELL_SIZE + GAP);
+
+            // Calculate exact position with gap and centering offset
+            double x = leftOffset + shortestColumn * (CELL_SIZE + GAP);
             double y = topInset + columnHeights[shortestColumn];
-            
+
             // Position the child as exact square
             child.resizeRelocate(x, y, CELL_SIZE, CELL_SIZE);
-            
+
             // Update column height: add cell size + gap
             columnHeights[shortestColumn] += CELL_SIZE + GAP;
         }
-        
+
         // Set the preferred height of the pane to the tallest column
         double maxHeight = 0;
         for (double height : columnHeights) {
