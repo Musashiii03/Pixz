@@ -119,6 +119,9 @@ public class GalleryController {
     // Remember last opened folder
     private File lastOpenedFolder = null;
 
+    // Track seekbar interaction for context-aware keyboard navigation
+    private boolean seekbarInteracted = false;
+
     // Method to set custom title bar reference
     public void setCustomTitleBar(javafx.scene.layout.HBox titleBar) {
         this.customTitleBar = titleBar;
@@ -1004,6 +1007,9 @@ public class GalleryController {
         // Save current scroll position
         savedScrollPosition = galleryScrollPane.getVvalue();
 
+        // Reset seekbar interaction flag for new viewer session
+        seekbarInteracted = false;
+
         // Switch to fullscreen mode for media viewing
         Stage stage = (Stage) rootPane.getScene().getWindow();
         stage.setFullScreen(true);
@@ -1065,10 +1071,6 @@ public class GalleryController {
 
             if (event.getCode() == KeyCode.ESCAPE) {
                 closeFullscreenViewer();
-            } else if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
-                navigateToNextMedia();
-            } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
-                navigateToPreviousMedia();
             } else if (event.getCode() == KeyCode.F || event.getCode() == KeyCode.F11) {
                 toggleFullscreen();
             } else if (event.getCode() == KeyCode.SPACE) {
@@ -1098,13 +1100,53 @@ public class GalleryController {
                     container.setRotate(newRotation);
                     container.requestLayout();
                 }
+            } else {
+                // Media Type specific navigation/seeking
+                // Fix: Use current item from list instead of captured 'item' variable which is
+                // stale after navigation
+                MediaItem currentItem = displayedItems.get(currentMediaIndex);
+
+                if (currentItem.getType() == MediaItem.MediaType.VIDEO) {
+                    if (event.isShiftDown()) {
+                        // Shift+N/P always navigate between videos
+                        if (event.getCode() == KeyCode.N) {
+                            navigateToNextMedia();
+                        } else if (event.getCode() == KeyCode.P) {
+                            navigateToPreviousMedia();
+                        }
+                    } else if (seekbarInteracted) {
+                        // Seekbar mode: Arrow keys seek within video
+                        if (event.getCode() == KeyCode.RIGHT) {
+                            if (currentMediaPlayer != null) {
+                                currentMediaPlayer
+                                        .seek(currentMediaPlayer.getCurrentTime().add(javafx.util.Duration.seconds(5)));
+                            }
+                        } else if (event.getCode() == KeyCode.LEFT) {
+                            if (currentMediaPlayer != null) {
+                                currentMediaPlayer.seek(
+                                        currentMediaPlayer.getCurrentTime().subtract(javafx.util.Duration.seconds(5)));
+                            }
+                        }
+                    } else {
+                        // Default mode: Arrow keys navigate between videos (like images)
+                        if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
+                            navigateToNextMedia();
+                        } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
+                            navigateToPreviousMedia();
+                        }
+                    }
+                } else {
+                    // IMAGE navigation
+                    if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
+                        navigateToNextMedia();
+                    } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
+                        navigateToPreviousMedia();
+                    }
+                }
             }
         });
-        Platform.runLater(() ->
-
-        {
+        Platform.runLater(() -> {
             fullscreenViewer.requestFocus();
-
         });
     }
 
@@ -1197,11 +1239,21 @@ public class GalleryController {
                 javafx.util.Duration.millis(500), topBar);
         fadeOutTop.setFromValue(1.0);
         fadeOutTop.setToValue(0.0);
+        fadeOutTop.setOnFinished(ev -> {
+            // Hide cursor when bars are hidden
+            imageStack.setCursor(javafx.scene.Cursor.NONE);
+            topBar.setMouseTransparent(true);
+        });
 
         javafx.animation.FadeTransition fadeInTop = new javafx.animation.FadeTransition(
                 javafx.util.Duration.millis(200), topBar);
         fadeInTop.setFromValue(0.0);
         fadeInTop.setToValue(1.0);
+        fadeInTop.setOnFinished(ev -> {
+            // Show cursor when bars are visible
+            imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
+            topBar.setMouseTransparent(false);
+        });
 
         javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
                 javafx.util.Duration.seconds(3));
@@ -1211,8 +1263,11 @@ public class GalleryController {
         imageStack.setOnMouseMoved(e -> {
             if (topBar.getOpacity() < 1.0) {
                 fadeInTop.play();
+                // Ensure immediate interactivity
+                topBar.setMouseTransparent(false);
             }
             topBar.setOpacity(1.0); // Ensure visible
+            imageStack.setCursor(javafx.scene.Cursor.DEFAULT); // Show cursor on movement
             idleTimer.playFromStart(); // Reset timer
         });
 
@@ -1628,6 +1683,11 @@ public class GalleryController {
             // Note: EndOfMedia handler is already set above with loop logic
             // Don't override it here
 
+            // Detect seekbar interaction (mouse click or drag)
+            seekSlider.setOnMousePressed(e -> {
+                seekbarInteracted = true;
+            });
+
             seekSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
                 if (!isUpdatingFromPlayer[0] && !seekSlider.isValueChanging()) {
                     currentMediaPlayer.seek(javafx.util.Duration.seconds(newVal.doubleValue()));
@@ -1635,6 +1695,10 @@ public class GalleryController {
             });
 
             seekSlider.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
+                if (isChanging) {
+                    // User started dragging
+                    seekbarInteracted = true;
+                }
                 if (!isChanging) {
                     currentMediaPlayer.seek(javafx.util.Duration.seconds(seekSlider.getValue()));
                 }
@@ -1661,6 +1725,12 @@ public class GalleryController {
                     javafx.util.Duration.millis(500), topBar);
             fadeOutTop.setFromValue(1.0);
             fadeOutTop.setToValue(0.0);
+            fadeOutTop.setOnFinished(ev -> {
+                // Hide cursor when bars are hidden
+                videoStack.setCursor(javafx.scene.Cursor.NONE);
+                controlsContainer.setMouseTransparent(true);
+                topBar.setMouseTransparent(true);
+            });
 
             javafx.animation.FadeTransition fadeInControls = new javafx.animation.FadeTransition(
                     javafx.util.Duration.millis(200), controlsContainer);
@@ -1671,6 +1741,12 @@ public class GalleryController {
                     javafx.util.Duration.millis(200), topBar);
             fadeInTop.setFromValue(0.0);
             fadeInTop.setToValue(1.0);
+            fadeInTop.setOnFinished(ev -> {
+                // Show cursor when bars are visible
+                videoStack.setCursor(javafx.scene.Cursor.DEFAULT);
+                controlsContainer.setMouseTransparent(false);
+                topBar.setMouseTransparent(false);
+            });
 
             javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
                     javafx.util.Duration.seconds(3));
@@ -1684,9 +1760,13 @@ public class GalleryController {
                 if (controlsContainer.getOpacity() < 1.0) {
                     fadeInControls.play();
                     fadeInTop.play();
+                    // Ensure immediate interactivity
+                    controlsContainer.setMouseTransparent(false);
+                    topBar.setMouseTransparent(false);
                 }
                 controlsContainer.setOpacity(1.0); // Ensure visible
                 topBar.setOpacity(1.0); // Ensure visible
+                videoStack.setCursor(javafx.scene.Cursor.DEFAULT); // Show cursor on movement
                 idleTimer.playFromStart(); // Reset timer
             });
 
@@ -1750,7 +1830,8 @@ public class GalleryController {
             errorLabel.setStyle("-fx-text-fill: #f38ba8; -fx-font-size: 18px;");
 
             Button closeButton = new Button("✕ Close");
-            closeButton.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
+            closeButton.setStyle(
+                    "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
             closeButton.setOnAction(ev -> closeFullscreenViewer());
 
             errorBox.getChildren().addAll(errorLabel, closeButton);
@@ -1809,6 +1890,7 @@ public class GalleryController {
     private void navigateToNextMedia() {
         if (currentMediaIndex < displayedItems.size() - 1) {
             currentMediaIndex++;
+            seekbarInteracted = false; // Reset to default navigation mode
             switchToMedia(displayedItems.get(currentMediaIndex));
         }
     }
@@ -1816,6 +1898,7 @@ public class GalleryController {
     private void navigateToPreviousMedia() {
         if (currentMediaIndex > 0) {
             currentMediaIndex--;
+            seekbarInteracted = false; // Reset to default navigation mode
             switchToMedia(displayedItems.get(currentMediaIndex));
         }
     }
@@ -1906,7 +1989,8 @@ public class GalleryController {
             reasonLabel.setMaxWidth(600);
 
             Button openExternalBtn = new Button("🎬 Open in System Player");
-            openExternalBtn.setStyle("-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
+            openExternalBtn.setStyle(
+                    "-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
             openExternalBtn.setOnAction(ev -> {
                 try {
                     java.awt.Desktop.getDesktop().open(item.getFile());
@@ -1916,7 +2000,8 @@ public class GalleryController {
             });
 
             Button closeBtn = new Button("✕ Close");
-            closeBtn.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
+            closeBtn.setStyle(
+                    "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
             closeBtn.setOnAction(ev -> closeFullscreenViewer());
 
             HBox buttonBox = new HBox(10, openExternalBtn, closeBtn);
