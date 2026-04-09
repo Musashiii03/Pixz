@@ -98,6 +98,9 @@ public class GalleryController {
     private MediaFilter currentFilter = MediaFilter.ALL;
     private String currentSortBy = "Name";
     private String currentFolderFilter = null; // null means all folders
+    
+    // Flag to control mouse moved event response (prevent showing controls on keyboard navigation)
+    private boolean respondToMouseMoved = true;
     private double savedScrollPosition = 0.0; // Save scroll position when opening fullscreen
 
     // Playback retry state
@@ -113,14 +116,17 @@ public class GalleryController {
 
     private javafx.scene.layout.HBox customTitleBar; // Custom title bar reference
 
-    // Sidebar animation
-    private javafx.animation.TranslateTransition sidebarTransition;
+    // Sidebar is now permanently visible (no animation needed)
 
     // Remember last opened folder
     private File lastOpenedFolder = null;
 
     // Track seekbar interaction for context-aware keyboard navigation
     private boolean seekbarInteracted = false;
+
+    // Throttle navigation to prevent rapid switching issues
+    private long lastSwitchTime = 0;
+    private static final long SWITCH_THROTTLE_MS = 200;
 
     // Method to set custom title bar reference
     public void setCustomTitleBar(javafx.scene.layout.HBox titleBar) {
@@ -143,8 +149,7 @@ public class GalleryController {
         // Enable scroll past end - add extra padding at bottom
         setupScrollPastEnd();
 
-        // Setup sidebar auto-hide
-        setupSidebar();
+        // Sidebar is now permanently visible - no setup needed
 
         // Store header reference
         headerNode = rootPane.getTop();
@@ -239,52 +244,7 @@ public class GalleryController {
         }
     }
 
-    private void setupSidebar() {
-        // Create animation for sidebar
-        sidebarTransition = new javafx.animation.TranslateTransition(javafx.util.Duration.millis(300), sidebar);
-
-        // Get the parent StackPane
-        Platform.runLater(() -> {
-            StackPane parent = (StackPane) rootPane.getParent();
-            if (parent != null) {
-                // Show sidebar on hover at left edge (only when not viewing media)
-                parent.setOnMouseMoved(e -> {
-                    if (fullscreenViewer == null) {
-                        if (e.getSceneX() < 30) {
-                            showSidebar();
-                        } else if (e.getSceneX() > 320 && sidebar.getTranslateX() >= -50) {
-                            hideSidebar();
-                        }
-                    }
-                });
-            }
-        });
-
-        // Keep sidebar visible when hovering over it (only when not viewing media)
-        sidebar.setOnMouseEntered(e -> {
-            if (fullscreenViewer == null) {
-                showSidebar();
-            }
-        });
-    }
-
-    private void showSidebar() {
-        if (sidebar.getTranslateX() < -10) {
-            sidebarTransition.stop();
-            sidebarTransition.setFromX(sidebar.getTranslateX());
-            sidebarTransition.setToX(0);
-            sidebarTransition.play();
-        }
-    }
-
-    private void hideSidebar() {
-        if (sidebar.getTranslateX() > -270) {
-            sidebarTransition.stop();
-            sidebarTransition.setFromX(sidebar.getTranslateX());
-            sidebarTransition.setToX(-280);
-            sidebarTransition.play();
-        }
-    }
+    // Sidebar is now permanently visible - no animation methods needed
 
     private void updateHeaderInfo() {
         itemCountLabel.setText(mediaItems.size() + " items");
@@ -1052,9 +1012,9 @@ public class GalleryController {
             setupVideoViewer(fullscreenViewer, item, topBar, initialRotation);
         }
 
-        // Hide sidebar immediately
-        hideSidebar();
+        // Hide sidebar when viewing media
         sidebar.setVisible(false);
+        sidebar.setManaged(false);
 
         // Hide custom title bar
         if (customTitleBar != null) {
@@ -1110,8 +1070,10 @@ public class GalleryController {
                     if (event.isShiftDown()) {
                         // Shift+N/P always navigate between videos
                         if (event.getCode() == KeyCode.N) {
+                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
                             navigateToNextMedia();
                         } else if (event.getCode() == KeyCode.P) {
+                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
                             navigateToPreviousMedia();
                         }
                     } else if (seekbarInteracted) {
@@ -1130,16 +1092,20 @@ public class GalleryController {
                     } else {
                         // Default mode: Arrow keys navigate between videos (like images)
                         if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
+                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
                             navigateToNextMedia();
                         } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
+                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
                             navigateToPreviousMedia();
                         }
                     }
                 } else {
                     // IMAGE navigation
                     if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
+                        respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
                         navigateToNextMedia();
                     } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
+                        respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
                         navigateToPreviousMedia();
                     }
                 }
@@ -1259,16 +1225,33 @@ public class GalleryController {
                 javafx.util.Duration.seconds(3));
         idleTimer.setOnFinished(ev -> fadeOutTop.play());
 
-        // Reset timer on movement
+        // Only respond to actual mouse movement, not synthetic events from keyboard navigation
         imageStack.setOnMouseMoved(e -> {
+            if (respondToMouseMoved) {
+                if (topBar.getOpacity() < 1.0) {
+                    fadeInTop.play();
+                    topBar.setMouseTransparent(false);
+                }
+                topBar.setOpacity(1.0);
+                imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
+                idleTimer.playFromStart();
+            }
+        });
+
+        // Re-enable mouse moved response on actual mouse interaction
+        imageStack.setOnMouseEntered(e -> {
+            respondToMouseMoved = true;
+        });
+
+        imageStack.setOnMouseDragged(e -> {
+            respondToMouseMoved = true;
             if (topBar.getOpacity() < 1.0) {
                 fadeInTop.play();
-                // Ensure immediate interactivity
                 topBar.setMouseTransparent(false);
             }
-            topBar.setOpacity(1.0); // Ensure visible
-            imageStack.setCursor(javafx.scene.Cursor.DEFAULT); // Show cursor on movement
-            idleTimer.playFromStart(); // Reset timer
+            topBar.setOpacity(1.0);
+            imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
+            idleTimer.playFromStart();
         });
 
         // Start timer initially
@@ -1287,6 +1270,7 @@ public class GalleryController {
             Media media = new Media(item.getFile().toURI().toString());
             currentMediaPlayer = new MediaPlayer(media);
             MediaView mediaView = new MediaView(currentMediaPlayer);
+            
             mediaView.setPreserveRatio(true);
             mediaView.setSmooth(true);
 
@@ -1367,7 +1351,7 @@ public class GalleryController {
                     double containerHeight = getHeight();
 
                     if (containerWidth > 0 && containerHeight > 0 &&
-                            currentMediaPlayer.getMedia() != null) {
+                            currentMediaPlayer != null && currentMediaPlayer.getMedia() != null) {
                         double videoWidth = currentMediaPlayer.getMedia().getWidth();
                         double videoHeight = currentMediaPlayer.getMedia().getHeight();
 
@@ -1420,19 +1404,16 @@ public class GalleryController {
             videoContainer.setVisible(true);
             videoContainer.setManaged(true);
 
-            // Trigger layout when video is ready
+            // Wait for media to be ready, then play with slight delay
             currentMediaPlayer.setOnReady(() -> {
                 videoContainer.requestLayout();
 
-                // Force a small delay to ensure MediaView is properly initialized
+                // Small delay before playing for stability
                 javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
-                        javafx.util.Duration.millis(100));
+                        javafx.util.Duration.millis(300));
                 delay.setOnFinished(e -> {
-                    // Explicitly start playing when ready
                     currentMediaPlayer.play();
-                    // Ensure volume is up
                     currentMediaPlayer.setVolume(1.0);
-                    // Force another layout update
                     videoContainer.requestLayout();
                 });
                 delay.play();
@@ -1755,23 +1736,44 @@ public class GalleryController {
                 fadeOutTop.play();
             });
 
-            // Reset timer on movement
+            // Only respond to actual mouse movement, not synthetic events from keyboard navigation
             videoStack.setOnMouseMoved(e -> {
+                if (respondToMouseMoved) {
+                    if (controlsContainer.getOpacity() < 1.0) {
+                        fadeInControls.play();
+                        fadeInTop.play();
+                        controlsContainer.setMouseTransparent(false);
+                        topBar.setMouseTransparent(false);
+                    }
+                    controlsContainer.setOpacity(1.0);
+                    topBar.setOpacity(1.0);
+                    videoStack.setCursor(javafx.scene.Cursor.DEFAULT);
+                    idleTimer.playFromStart();
+                }
+            });
+
+            // Re-enable mouse moved response on actual mouse interaction
+            videoStack.setOnMouseEntered(e -> {
+                respondToMouseMoved = true;
+            });
+
+            videoStack.setOnMouseDragged(e -> {
+                respondToMouseMoved = true;
                 if (controlsContainer.getOpacity() < 1.0) {
                     fadeInControls.play();
                     fadeInTop.play();
-                    // Ensure immediate interactivity
                     controlsContainer.setMouseTransparent(false);
                     topBar.setMouseTransparent(false);
                 }
-                controlsContainer.setOpacity(1.0); // Ensure visible
-                topBar.setOpacity(1.0); // Ensure visible
-                videoStack.setCursor(javafx.scene.Cursor.DEFAULT); // Show cursor on movement
-                idleTimer.playFromStart(); // Reset timer
+                controlsContainer.setOpacity(1.0);
+                topBar.setOpacity(1.0);
+                videoStack.setCursor(javafx.scene.Cursor.DEFAULT);
+                idleTimer.playFromStart();
             });
 
             // Also show on click
             videoStack.setOnMouseClicked(e -> {
+                respondToMouseMoved = true; // Re-enable on click
                 if (controlsContainer.getOpacity() < 1.0) {
                     fadeInControls.play();
                     fadeInTop.play();
@@ -1888,6 +1890,13 @@ public class GalleryController {
     }
 
     private void navigateToNextMedia() {
+        // Throttle rapid navigation
+        long now = System.currentTimeMillis();
+        if (now - lastSwitchTime < SWITCH_THROTTLE_MS) {
+            return; // Ignore fast key presses
+        }
+        lastSwitchTime = now;
+
         if (currentMediaIndex < displayedItems.size() - 1) {
             currentMediaIndex++;
             seekbarInteracted = false; // Reset to default navigation mode
@@ -1896,6 +1905,13 @@ public class GalleryController {
     }
 
     private void navigateToPreviousMedia() {
+        // Throttle rapid navigation
+        long now = System.currentTimeMillis();
+        if (now - lastSwitchTime < SWITCH_THROTTLE_MS) {
+            return; // Ignore fast key presses
+        }
+        lastSwitchTime = now;
+
         if (currentMediaIndex > 0) {
             currentMediaIndex--;
             seekbarInteracted = false; // Reset to default navigation mode
@@ -1910,7 +1926,7 @@ public class GalleryController {
             currentRetryAttempts = 0;
         }
 
-        // Stop current media player if exists
+        // FULLY stop and dispose current media player
         if (currentMediaPlayer != null) {
             currentMediaPlayer.stop();
             currentMediaPlayer.dispose();
@@ -1925,50 +1941,56 @@ public class GalleryController {
         // Clear and rebuild the fullscreen viewer content
         fullscreenViewer.getChildren().clear();
 
-        if (item.getType() == MediaItem.MediaType.IMAGE) {
-            // Create rotate action for images
-            Runnable rotateAction = () -> {
-                // Get the imageContainer from userData
-                Object userData = fullscreenViewer.getUserData();
-                if (userData instanceof Pane) {
-                    Pane imageContainer = (Pane) userData;
-                    double currentRotation = imageContainer.getRotate();
-                    double newRotation = currentRotation + 90;
-                    imageContainer.setRotate(newRotation);
-                    imageContainer.requestLayout();
-                }
-            };
-            HBox topBar = createTopBar(item, rotateAction);
-            int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
-            setupImageViewer(fullscreenViewer, item, topBar, initialRotation);
-        } else {
-            // Create rotate action for videos
-            Runnable rotateAction = () -> {
-                // Get the videoContainer from userData
-                Object userData = fullscreenViewer.getUserData();
-                if (userData instanceof Pane) {
-                    Pane videoContainer = (Pane) userData;
-                    double currentRotation = videoContainer.getRotate();
-                    double newRotation = currentRotation + 90;
-                    videoContainer.setRotate(newRotation);
-                    videoContainer.requestLayout();
-                }
-            };
-            HBox topBar = createTopBar(item, rotateAction);
-            int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
-            setupVideoViewer(fullscreenViewer, item, topBar, initialRotation);
-        }
+        // Add delay before loading new media to prevent pipeline overlap
+        javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
+                javafx.util.Duration.millis(150));
+        delay.setOnFinished(e -> {
+            if (item.getType() == MediaItem.MediaType.IMAGE) {
+                // Create rotate action for images
+                Runnable rotateAction = () -> {
+                    // Get the imageContainer from userData
+                    Object userData = fullscreenViewer.getUserData();
+                    if (userData instanceof Pane) {
+                        Pane imageContainer = (Pane) userData;
+                        double currentRotation = imageContainer.getRotate();
+                        double newRotation = currentRotation + 90;
+                        imageContainer.setRotate(newRotation);
+                        imageContainer.requestLayout();
+                    }
+                };
+                HBox topBar = createTopBar(item, rotateAction);
+                int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
+                setupImageViewer(fullscreenViewer, item, topBar, initialRotation);
+            } else {
+                // Create rotate action for videos
+                Runnable rotateAction = () -> {
+                    // Get the videoContainer from userData
+                    Object userData = fullscreenViewer.getUserData();
+                    if (userData instanceof Pane) {
+                        Pane videoContainer = (Pane) userData;
+                        double currentRotation = videoContainer.getRotate();
+                        double newRotation = currentRotation + 90;
+                        videoContainer.setRotate(newRotation);
+                        videoContainer.requestLayout();
+                    }
+                };
+                HBox topBar = createTopBar(item, rotateAction);
+                int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
+                setupVideoViewer(fullscreenViewer, item, topBar, initialRotation);
+            }
 
-        // Ensure focus for keyboard events
-        Platform.runLater(() -> {
-            fullscreenViewer.requestFocus();
-
+            // Ensure focus for keyboard events
+            Platform.runLater(() -> {
+                fullscreenViewer.requestFocus();
+            });
         });
+        delay.play();
     }
 
     private void showVideoErrorUI(MediaItem item, String title, String message) {
         Platform.runLater(() -> {
-            if (fullscreenViewer == null)
+            // Check if we're still viewing the same item - prevent showing error after navigation
+            if (fullscreenViewer == null || currentAttemptingItem != item)
                 return;
 
             VBox errorBox = new VBox(20);
@@ -2040,6 +2062,7 @@ public class GalleryController {
 
         // Restore sidebar visibility
         sidebar.setVisible(true);
+        sidebar.setManaged(true);
 
         // Restore header and gallery view
         rootPane.setTop(headerNode);
