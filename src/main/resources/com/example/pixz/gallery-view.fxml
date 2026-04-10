@@ -8,15 +8,39 @@
 <BorderPane xmlns:fx="http://javafx.com/fxml/1" xmlns="http://javafx.com/javafx/21" fx:controller="com.example.pixz.GalleryController">
     <!-- Permanent Sidebar on Left -->
     <left>
-        <VBox fx:id="sidebar" style="-fx-background-color: #0f1117; -fx-min-width: 280; -fx-max-width: 280; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 20, 0, 5, 0);">
+        <VBox fx:id="sidebar" style="-fx-background-color: #0a0a0a; -fx-min-width: 280; -fx-max-width: 280;">
             <padding>
-                <Insets top="20" right="15" bottom="20" left="15"/>
+                <Insets top="30" right="20" bottom="20" left="20"/>
             </padding>
-            <Label text="Folders" style="-fx-text-fill: #ffffff; -fx-font-size: 18px; -fx-font-weight: bold; -fx-padding: 0 0 15 0;"/>
-            <Button text="+ Add Folder" onAction="#onFolderLocationClick" maxWidth="Infinity" style="-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 13px; -fx-padding: 10; -fx-background-radius: 8; -fx-cursor: hand;"/>
-            <ScrollPane fitToWidth="true" style="-fx-background: transparent; -fx-background-color: transparent; -fx-padding: 15 0 0 0;" VBox.vgrow="ALWAYS">
-                <VBox fx:id="folderList" spacing="8" style="-fx-background-color: transparent;"/>
-            </ScrollPane>
+            
+            <!-- App Title -->
+            <VBox spacing="2" style="-fx-padding: 0 0 30 0;">
+                <Label text="PIXZ" style="-fx-text-fill: #ffffff; -fx-font-size: 24px; -fx-font-weight: bold; -fx-letter-spacing: 2;"/>
+                <Label text="Premium Gallery" style="-fx-text-fill: #7a7d8a; -fx-font-size: 13px;"/>
+            </VBox>
+            
+            <!-- Home Button -->
+            <Button fx:id="homeButton" text="🏠  Home" onAction="#onHomeClick" style="-fx-background-color: #90CAF9; -fx-text-fill: #000000; -fx-font-size: 15px; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand; -fx-alignment: CENTER-LEFT; -fx-border-width: 0;" maxWidth="Infinity"/>
+            
+            <!-- Spacer between Home and Favorites -->
+            <Region style="-fx-min-height: 8;"/>
+            
+            <!-- Favorites Button -->
+            <Button fx:id="favoritesButton" text="♥  Favorites" onAction="#onFavoritesClick" style="-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 15px; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand; -fx-alignment: CENTER-LEFT; -fx-border-width: 0;" maxWidth="Infinity"/>
+            
+            <!-- Folders Section -->
+            <VBox spacing="8" style="-fx-padding: 25 0 0 0;" VBox.vgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="FOLDERS" style="-fx-text-fill: #5a5a5a; -fx-font-size: 11px; -fx-font-weight: bold;"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="addFolderButton" text="+" onAction="#onFolderLocationClick" style="-fx-background-color: #2d3142; -fx-text-fill: #89b4fa; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 4 10; -fx-background-radius: 6; -fx-cursor: hand; -fx-border-width: 0;"/>
+                </HBox>
+                
+                <!-- Folder List -->
+                <ScrollPane fitToWidth="true" style="-fx-background: transparent; -fx-background-color: transparent;" VBox.vgrow="ALWAYS">
+                    <VBox fx:id="folderList" spacing="4" style="-fx-background-color: transparent;"/>
+                </ScrollPane>
+            </VBox>
         </VBox>
     </left>
     
@@ -24,38 +48,69 @@
     <center>
         <BorderPane fx:id="rootPane" style="-fx-background-color: #000000;">
             <top>
-                <VBox style="-fx-background-color: #000000; -fx-padding: 20 30 10 30;">
-                    <!-- Search Bar -->
-                    <TextField fx:id="searchField" promptText="🔍 Search by filename or tag" style="-fx-background-color: #2d3142; -fx-text-fill: #ffffff; -fx-prompt-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-padding: 12; -fx-background-radius: 8; -fx-border-radius: 8;"/>
-                    
-                    <!-- Breadcrumb and Header -->
-                    <VBox spacing="5" style="-fx-padding: 20 0 10 0;">
-                        <Label fx:id="breadcrumbLabel" text="All Folders" style="-fx-text-fill: #7a7d8a; -fx-font-size: 13px;"/>
-                        <HBox alignment="CENTER_LEFT" spacing="15">
-                            <Label fx:id="folderTitleLabel" text="All Media" style="-fx-text-fill: #ffffff; -fx-font-size: 32px; -fx-font-weight: bold;"/>
-                            <Region HBox.hgrow="ALWAYS"/>
-                            <!-- Filter Buttons -->
-                            <HBox spacing="8" alignment="CENTER_RIGHT" style="-fx-padding: 5 0 0 0;">
-                                <Button fx:id="allMediaButton" text="All" onAction="#onFilterAll" style="-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
-                                <Button fx:id="photosButton" text="Photos" onAction="#onFilterPhotos" style="-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
-                                <Button fx:id="videosButton" text="Videos" onAction="#onFilterVideos" style="-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                <VBox style="-fx-background-color: #000000;">
+                    <!-- Top Navigation Bar -->
+                    <HBox alignment="CENTER_LEFT" spacing="30" style="-fx-background-color: #0a0a0a; -fx-padding: 8 30 8 30; -fx-border-color: #1a1a1a; -fx-border-width: 0 0 1 0;">
+                        <!-- Navigation Tabs -->
+                        <HBox spacing="30" alignment="CENTER_LEFT">
+                            <Button fx:id="galleryTab" text="Gallery" style="-fx-background-color: transparent; -fx-text-fill: #89b4fa; -fx-font-size: 14px; -fx-padding: 8 0; -fx-border-color: #89b4fa; -fx-border-width: 0 0 2 0; -fx-cursor: hand; -fx-background-radius: 0; -fx-border-radius: 0;"/>
+                            <Button fx:id="collectionsTab" text="Collections" style="-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-padding: 8 0; -fx-cursor: hand; -fx-background-radius: 0;"/>
+                            <Button fx:id="archiveTab" text="Archive" style="-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-padding: 8 0; -fx-cursor: hand; -fx-background-radius: 0;"/>
+                        </HBox>
+                        
+                        <Region HBox.hgrow="ALWAYS"/>
+                        
+                        <!-- Right Side Buttons -->
+                        <HBox spacing="10" alignment="CENTER_RIGHT">
+                            <!-- Search Field (compact) -->
+                            <TextField fx:id="searchField" promptText="🔍 Search your exhibits..." style="-fx-background-color: #000000; -fx-text-fill: #ffffff; -fx-prompt-text-fill: #7a7d8a; -fx-font-size: 13px; -fx-padding: 8 12; -fx-background-radius: 20; -fx-border-radius: 20; -fx-pref-width: 250; -fx-min-width: 200;"/>
+                            <!-- Notification Button -->
+                            <Button fx:id="notificationButton" text="🔔" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 6; -fx-cursor: hand; -fx-background-radius: 6; -fx-min-width: 32; -fx-min-height: 32;"/>
+                            <!-- Settings Button -->
+                            <Button fx:id="settingsButton" text="⚙" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 16px; -fx-padding: 6; -fx-cursor: hand; -fx-background-radius: 6; -fx-min-width: 32; -fx-min-height: 32;"/>
+                            
+                            <!-- macOS-style Window Controls -->
+                            <HBox spacing="8" alignment="CENTER" style="-fx-padding: 0 5 0 10;">
+                                <Button fx:id="macCloseButton" style="-fx-background-color: #ff5f57; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0;"/>
+                                <Button fx:id="macMaximizeButton" style="-fx-background-color: #ffbd2e; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0;"/>
+                                <Button fx:id="macMinimizeButton" style="-fx-background-color: #28c840; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0;"/>
                             </HBox>
                         </HBox>
-                        <!-- Folder Filter Buttons (Horizontally Scrollable, no visible scrollbar) -->
-                        <ScrollPane fitToHeight="true" hbarPolicy="NEVER" vbarPolicy="NEVER" style="-fx-background: transparent; -fx-background-color: transparent; -fx-padding: 10 0 15 0;" pannable="true">
-                            <HBox fx:id="folderFilterButtons" spacing="8" alignment="CENTER_LEFT">
-                                <Button fx:id="allFoldersButton" text="All Folders" onAction="#onAllFoldersClick" style="-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;"/>
+                    </HBox>
+                    
+                    <!-- Content Area -->
+                    <VBox style="-fx-background-color: #000000; -fx-padding: 20 30 10 30;">
+                        <!-- Breadcrumb -->
+                        <Label fx:id="breadcrumbLabel" text="ALL FOLDERS > MULTIPLE" style="-fx-text-fill: #7a7d8a; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 0 0 10 0; -fx-letter-spacing: 0.5;"/>
+                        
+                        <!-- Title -->
+                        <Label fx:id="folderTitleLabel" text="Multiple Folders" style="-fx-text-fill: #ffffff; -fx-font-size: 48px; -fx-font-weight: bold; -fx-padding: 0 0 25 0;"/>
+                        
+                        <!-- Filter and Sort Row -->
+                        <HBox alignment="CENTER_LEFT" spacing="15" style="-fx-padding: 0 0 20 0;">
+                            <!-- Left: Media Type Filters (buttons in single container) -->
+                            <HBox spacing="0" alignment="CENTER_LEFT" style="-fx-background-color: #2a2a2a; -fx-background-radius: 10; -fx-padding: 2;">
+                                <Button fx:id="allMediaButton" text="All" onAction="#onFilterAll" style="-fx-background-color: #90CAF9; -fx-text-fill: #000000; -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"/>
+                                <Button fx:id="photosButton" text="Photos" onAction="#onFilterPhotos" style="-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"/>
+                                <Button fx:id="videosButton" text="Videos" onAction="#onFilterVideos" style="-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"/>
                             </HBox>
-                        </ScrollPane>
+                            
+                            <Region HBox.hgrow="ALWAYS"/>
+                            
+                            <!-- Right: Sort and Refresh Buttons (separate) -->
+                            <HBox spacing="8" alignment="CENTER_RIGHT">
+                                <HBox spacing="0" alignment="CENTER" style="-fx-background-color: #2a2a2a; -fx-background-radius: 10; -fx-padding: 2;">
+                                    <Button fx:id="sortButton" text="≡ Sort by Date" onAction="#onSortClick" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 12px; -fx-padding: 6 16; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"/>
+                                </HBox>
+                                <HBox spacing="0" alignment="CENTER" style="-fx-background-color: #2a2a2a; -fx-background-radius: 10; -fx-padding: 2;">
+                                    <Button fx:id="refreshButton" text="↻" onAction="#onRefreshClick" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 15px; -fx-padding: 6 14; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"/>
+                                </HBox>
+                            </HBox>
+                        </HBox>
 
-                        <HBox alignment="CENTER_LEFT" spacing="10">
+                        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 0 0 15 0;">
                             <Label fx:id="itemCountLabel" text="0 items" style="-fx-text-fill: #7a7d8a; -fx-font-size: 14px;"/>
                             <Region HBox.hgrow="ALWAYS"/>
-                            <!-- Refresh Button -->
-                            <Button fx:id="refreshButton" text="↻" onAction="#onRefreshClick" style="-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 18px; -fx-padding: 8 12; -fx-background-radius: 6; -fx-cursor: hand;"/>
-                            <!-- Sort Dropdown -->
-                            <Label text="Sort by:" style="-fx-text-fill: #7a7d8a; -fx-font-size: 13px;"/>
-                            <ComboBox fx:id="sortComboBox" style="-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 13px; -fx-pref-width: 150;"/>
                         </HBox>
                     </VBox>
                 </VBox>

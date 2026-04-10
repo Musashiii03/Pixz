@@ -11,10 +11,11 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Manages session persistence - saves and restores folder selections
+ * Manages session persistence - saves and restores folder selections and favorites
  */
 public class SessionManager {
     private static final String SESSION_FILE_NAME = "wingallery-session.txt";
+    private static final String FAVORITES_FILE_NAME = "wingallery-favorites.txt";
     private static final String APP_DIR_NAME = ".wingallery";
 
     /**
@@ -34,6 +35,25 @@ public class SessionManager {
         }
 
         return appDir.resolve(SESSION_FILE_NAME);
+    }
+
+    /**
+     * Get the favorites file path in user's home directory
+     */
+    private static Path getFavoritesFilePath() {
+        String userHome = System.getProperty("user.home");
+        Path appDir = Paths.get(userHome, APP_DIR_NAME);
+
+        // Create app directory if it doesn't exist
+        try {
+            if (!Files.exists(appDir)) {
+                Files.createDirectories(appDir);
+            }
+        } catch (IOException e) {
+            // Failed to create directory
+        }
+
+        return appDir.resolve(FAVORITES_FILE_NAME);
     }
 
     /**
@@ -84,6 +104,56 @@ public class SessionManager {
         }
 
         return folderPaths;
+    }
+
+    /**
+     * Save favorite file paths
+     */
+    public static void saveFavorites(Set<String> favoritePaths) {
+        Path favoritesFile = getFavoritesFilePath();
+
+        try (BufferedWriter writer = Files.newBufferedWriter(favoritesFile)) {
+            for (String filePath : favoritePaths) {
+                // Only save files that still exist
+                if (new File(filePath).exists()) {
+                    writer.write(filePath);
+                    writer.newLine();
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to save favorites: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Load favorite file paths
+     */
+    public static Set<String> loadFavorites() {
+        Set<String> favoritePaths = new LinkedHashSet<>();
+        Path favoritesFile = getFavoritesFilePath();
+
+        if (!Files.exists(favoritesFile)) {
+            return favoritePaths;
+        }
+
+        try (BufferedReader reader = Files.newBufferedReader(favoritesFile)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (!line.isEmpty()) {
+                    File file = new File(line);
+                    // Only restore files that still exist
+                    if (file.exists() && file.isFile()) {
+                        favoritePaths.add(line);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            // Failed to load favorites
+        }
+
+        return favoritePaths;
     }
 
     /**

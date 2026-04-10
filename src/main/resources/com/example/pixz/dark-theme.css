@@ -110,7 +110,7 @@
 
 /* TextField Styles */
 .text-field {
-    -fx-background-color: #313244;
+    -fx-background-color: #000000;
     -fx-text-fill: #cdd6f4;
     -fx-prompt-text-fill: #7f849c;
     -fx-background-radius: 8;
@@ -119,6 +119,7 @@
 }
 
 .text-field:focused {
+    -fx-background-color: #000000;
     -fx-border-color: #89b4fa;
     -fx-border-width: 1;
 }
@@ -265,4 +266,58 @@
 
 .title-bar-button.close-button:pressed {
     -fx-background-color: #f1707a;
+}
+
+/* Top Navigation Bar Styles */
+.nav-tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #7a7d8a;
+    -fx-font-size: 14px;
+    -fx-padding: 8 0;
+    -fx-cursor: hand;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.nav-tab:hover {
+    -fx-text-fill: #cdd6f4;
+}
+
+.nav-tab.active {
+    -fx-text-fill: #89b4fa;
+    -fx-border-color: #89b4fa;
+    -fx-border-width: 0 0 2 0;
+}
+
+.icon-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cdd6f4;
+    -fx-font-size: 18px;
+    -fx-padding: 8;
+    -fx-cursor: hand;
+    -fx-background-radius: 50%;
+}
+
+.icon-button:hover {
+    -fx-background-color: #2d3142;
+    -fx-text-fill: #ffffff;
+}
+
+/* macOS-style window control buttons */
+.mac-window-button {
+    -fx-min-width: 12px;
+    -fx-max-width: 12px;
+    -fx-min-height: 12px;
+    -fx-max-height: 12px;
+    -fx-background-radius: 50%;
+    -fx-cursor: hand;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-text-fill: transparent;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+.mac-window-button:hover {
+    -fx-text-fill: #000000;
 }
