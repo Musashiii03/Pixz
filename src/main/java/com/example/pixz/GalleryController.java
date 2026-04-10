@@ -14,7 +14,6 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
@@ -64,6 +63,15 @@ public class GalleryController {
     private VBox folderList;
 
     @FXML
+    private Button addFolderButton;
+    
+    @FXML
+    private Button homeButton;
+    
+    @FXML
+    private Button favoritesButton;
+
+    @FXML
     private Button allMediaButton;
 
     @FXML
@@ -73,22 +81,41 @@ public class GalleryController {
     private Button videosButton;
 
     @FXML
-    private ComboBox<String> sortComboBox;
-
-    @FXML
-    private HBox folderFilterButtons;
-
-    @FXML
-    private Button allFoldersButton;
+    private Button sortButton;
 
     @FXML
     private Button refreshButton;
 
+    // Top navigation bar buttons
+    @FXML
+    private Button galleryTab;
+
+    @FXML
+    private Button collectionsTab;
+
+    @FXML
+    private Button archiveTab;
+
+    @FXML
+    private Button notificationButton;
+
+    @FXML
+    private Button settingsButton;
+
+    @FXML
+    private Button macCloseButton;
+
+    @FXML
+    private Button macMinimizeButton;
+
+    @FXML
+    private Button macMaximizeButton;
+
     private final Set<String> selectedFolders = new HashSet<>();
+    private final Set<String> favoritePaths = new HashSet<>();
     private final List<MediaItem> mediaItems = new ArrayList<>();
     private final List<MediaItem> displayedItems = new ArrayList<>();
     private final Map<String, HBox> folderCards = new HashMap<>();
-    private final Map<String, Button> folderFilterButtonsMap = new HashMap<>();
 
     // Filter and sort state
     private enum MediaFilter {
@@ -96,6 +123,7 @@ public class GalleryController {
     }
 
     private MediaFilter currentFilter = MediaFilter.ALL;
+    private boolean showOnlyFavorites = false;
     private String currentSortBy = "Name";
     private String currentFolderFilter = null; // null means all folders
     
@@ -135,16 +163,14 @@ public class GalleryController {
 
     @FXML
     public void initialize() {
+        // Setup top navigation bar
+        setupTopNavigationBar();
+
+        // Setup add folder button hover effect
+        setupAddFolderButtonHover();
+
         // Setup search functionality
         searchField.textProperty().addListener((obs, oldVal, newVal) -> applyFiltersAndSort());
-
-        // Setup sort dropdown
-        sortComboBox.getItems().addAll("Name", "Date Modified");
-        sortComboBox.setValue("Name");
-        sortComboBox.setOnAction(e -> {
-            currentSortBy = sortComboBox.getValue();
-            applyFiltersAndSort();
-        });
 
         // Enable scroll past end - add extra padding at bottom
         setupScrollPastEnd();
@@ -162,6 +188,121 @@ public class GalleryController {
 
         // Show empty state if no folders
         showEmptyStateIfNeeded();
+    }
+
+    /**
+     * Setup top navigation bar with hover effects and tab functionality
+     */
+    private void setupTopNavigationBar() {
+        // Gallery tab is active by default
+        // Collections and Archive tabs are disabled (functionality ignored as requested)
+        
+        // Add hover effects for navigation tabs
+        setupTabHoverEffect(collectionsTab);
+        setupTabHoverEffect(archiveTab);
+        
+        // Add hover effects for icon buttons
+        setupIconButtonHoverEffect(notificationButton, "transparent");
+        setupIconButtonHoverEffect(settingsButton, "transparent");
+        
+        // Setup macOS-style window control buttons
+        setupMacOSWindowControls();
+        
+        // Disable functionality for non-gallery tabs (as requested)
+        collectionsTab.setOnAction(e -> {
+            // Functionality ignored
+        });
+        archiveTab.setOnAction(e -> {
+            // Functionality ignored
+        });
+        
+        // Disable functionality for right side buttons (as requested)
+        notificationButton.setOnAction(e -> {
+            // Functionality ignored
+        });
+        settingsButton.setOnAction(e -> {
+            // Functionality ignored
+        });
+    }
+    
+    /**
+     * Setup hover effect for add folder button
+     */
+    private void setupAddFolderButtonHover() {
+        String normalStyle = "-fx-background-color: #2d3142; -fx-text-fill: #89b4fa; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 4 10; -fx-background-radius: 6; -fx-cursor: hand; -fx-border-width: 0;";
+        String hoverStyle = "-fx-background-color: #3a4a5a; -fx-text-fill: #b4befe; -fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 4 10; -fx-background-radius: 6; -fx-cursor: hand; -fx-border-width: 0;";
+        
+        addFolderButton.setOnMouseEntered(e -> addFolderButton.setStyle(hoverStyle));
+        addFolderButton.setOnMouseExited(e -> addFolderButton.setStyle(normalStyle));
+    }
+    
+    /**
+     * Setup macOS-style window control buttons
+     */
+    private void setupMacOSWindowControls() {
+        // Get the stage reference
+        Platform.runLater(() -> {
+            javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
+            
+            // Close button (red) - closes the window
+            macCloseButton.setOnAction(e -> stage.close());
+            
+            // Maximize button (yellow) - toggles maximize/restore
+            macMaximizeButton.setOnAction(e -> {
+                if (stage.isMaximized()) {
+                    stage.setMaximized(false);
+                } else {
+                    stage.setMaximized(true);
+                }
+            });
+            
+            // Minimize button (green) - minimizes the window
+            macMinimizeButton.setOnAction(e -> stage.setIconified(true));
+            
+            // Add hover effects to show symbols on macOS buttons
+            setupMacButtonHoverEffect(macCloseButton, "×", "#ff5f57", "#e04b43");
+            setupMacButtonHoverEffect(macMaximizeButton, "□", "#ffbd2e", "#e5a81e");
+            setupMacButtonHoverEffect(macMinimizeButton, "−", "#28c840", "#1fb032");
+        });
+    }
+    
+    /**
+     * Setup hover effect for macOS-style buttons to show symbols
+     */
+    private void setupMacButtonHoverEffect(Button button, String symbol, String normalColor, String hoverColor) {
+        String normalStyle = "-fx-background-color: " + normalColor + "; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-text-fill: transparent; -fx-font-size: 10px; -fx-font-weight: bold;";
+        String hoverStyle = "-fx-background-color: " + hoverColor + "; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-text-fill: #000000; -fx-font-size: 10px; -fx-font-weight: bold;";
+        
+        button.setText(symbol);
+        button.setStyle(normalStyle);
+        
+        button.setOnMouseEntered(e -> button.setStyle(hoverStyle));
+        button.setOnMouseExited(e -> button.setStyle(normalStyle));
+    }
+    
+    /**
+     * Setup hover effect for navigation tabs
+     */
+    private void setupTabHoverEffect(Button tab) {
+        String normalStyle = "-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-padding: 8 0; -fx-cursor: hand; -fx-background-radius: 0;";
+        String hoverStyle = "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 8 0; -fx-cursor: hand; -fx-background-radius: 0;";
+        
+        tab.setOnMouseEntered(e -> tab.setStyle(hoverStyle));
+        tab.setOnMouseExited(e -> tab.setStyle(normalStyle));
+    }
+    
+    /**
+     * Setup hover effect for icon buttons
+     */
+    private void setupIconButtonHoverEffect(Button button, String baseColor) {
+        // Notification button has smaller font size (14px), settings button has 16px
+        String fontSize = button == notificationButton ? "14px" : "16px";
+        String normalStyle = "-fx-background-color: " + baseColor + "; -fx-text-fill: #cdd6f4; -fx-font-size: " + fontSize + "; -fx-padding: 6; -fx-cursor: hand; -fx-background-radius: 6; -fx-min-width: 32; -fx-min-height: 32;";
+        String hoverColor = baseColor.equals("transparent") ? "#2d3142" : "#fab4c8";
+        String hoverStyle = "-fx-background-color: " + hoverColor + "; -fx-text-fill: #ffffff; -fx-font-size: " + fontSize + "; -fx-padding: 6; -fx-cursor: hand; -fx-background-radius: 6; -fx-min-width: 32; -fx-min-height: 32;";
+        
+        button.setOnMouseEntered(e -> button.setStyle(hoverStyle));
+        button.setOnMouseExited(e -> button.setStyle(normalStyle));
     }
 
     /**
@@ -196,6 +337,16 @@ public class GalleryController {
                 }
             }
         }
+        
+        // Load favorites
+        favoritePaths.addAll(SessionManager.loadFavorites());
+        
+        // Mark items as favorites
+        for (MediaItem item : mediaItems) {
+            if (favoritePaths.contains(item.getPath())) {
+                item.setFavorite(true);
+            }
+        }
     }
 
     /**
@@ -204,6 +355,7 @@ public class GalleryController {
     public void saveCurrentSession() {
 
         SessionManager.saveSession(selectedFolders);
+        SessionManager.saveFavorites(favoritePaths);
     }
 
     private void showEmptyStateIfNeeded() {
@@ -273,6 +425,7 @@ public class GalleryController {
     protected void onFilterAll() {
         currentFilter = MediaFilter.ALL;
         updateFilterButtonStyles();
+        updateSidebarButtonStyles();
         applyFiltersAndSort();
     }
 
@@ -280,6 +433,7 @@ public class GalleryController {
     protected void onFilterPhotos() {
         currentFilter = MediaFilter.PHOTOS;
         updateFilterButtonStyles();
+        updateSidebarButtonStyles();
         applyFiltersAndSort();
     }
 
@@ -287,27 +441,57 @@ public class GalleryController {
     protected void onFilterVideos() {
         currentFilter = MediaFilter.VIDEOS;
         updateFilterButtonStyles();
+        updateSidebarButtonStyles();
         applyFiltersAndSort();
     }
-
-    private void onFolderFilterClick(String folderPath) {
-        currentFolderFilter = folderPath;
-        updateFolderFilterButtonStyles();
+    
+    @FXML
+    protected void onHomeClick() {
+        currentFilter = MediaFilter.ALL;
+        showOnlyFavorites = false;
+        currentFolderFilter = null;
+        updateFilterButtonStyles();
+        updateSidebarButtonStyles();
         updateHeaderInfo();
+        applyFiltersAndSort();
+    }
+    
+    @FXML
+    protected void onFavoritesClick() {
+        showOnlyFavorites = true;
+        // Keep current media type filter (ALL, PHOTOS, or VIDEOS)
+        // Don't reset folder filter - keep it if one is selected
+        updateFilterButtonStyles();
+        updateSidebarButtonStyles();
+        
+        // Update breadcrumb based on folder filter
+        if (currentFolderFilter != null) {
+            String folderName = new File(currentFolderFilter).getName();
+            breadcrumbLabel.setText("Favorites / " + folderName);
+            folderTitleLabel.setText("Favorites in " + folderName);
+        } else {
+            breadcrumbLabel.setText("Favorites");
+            folderTitleLabel.setText("Favorite Media");
+        }
+        
         applyFiltersAndSort();
     }
 
     @FXML
-    protected void onAllFoldersClick() {
-        currentFolderFilter = null;
-        updateFolderFilterButtonStyles();
-        updateHeaderInfo();
+    protected void onSortClick() {
+        // Toggle between Name and Date Modified
+        if ("Name".equals(currentSortBy)) {
+            currentSortBy = "Date Modified";
+            sortButton.setText("≡ Sort by Name");
+        } else {
+            currentSortBy = "Name";
+            sortButton.setText("≡ Sort by Date");
+        }
         applyFiltersAndSort();
     }
 
     @FXML
     protected void onRefreshClick() {
-
         // Step 1: Identify items without thumbnails (need regeneration)
         List<MediaItem> itemsToRegenerate = new ArrayList<>();
 
@@ -317,7 +501,6 @@ public class GalleryController {
             if (thumbnail == null) {
                 // No thumbnail - needs regeneration
                 itemsToRegenerate.add(item);
-
             }
         }
 
@@ -339,13 +522,11 @@ public class GalleryController {
                 Platform.runLater(() -> {
                     currentItem.setThumbnail(newThumbnail);
                     updateGalleryItem(currentItem);
-
                 });
             });
         }
 
         // Step 3: Rescan folders to detect new/deleted files
-
         if (currentFolderFilter != null) {
             // Refresh specific folder
             File folderToRefresh = new File(currentFolderFilter);
@@ -359,14 +540,12 @@ public class GalleryController {
             mediaItems.addAll(itemsToKeep);
 
             if (folderToRefresh.exists()) {
-
                 scanFolder(folderToRefresh);
             } else {
                 refreshGallery();
             }
         } else {
             // Refresh all folders
-
             List<File> foldersToRescan = new ArrayList<>();
             for (String folderPath : selectedFolders) {
                 foldersToRescan.add(new File(folderPath));
@@ -378,33 +557,27 @@ public class GalleryController {
                 }
             }
         }
-
     }
 
     private void updateFilterButtonStyles() {
-        String activeStyle = "-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;";
-        String inactiveStyle = "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;";
+        // Active button style - primary color background with black text
+        String activeStyle = "-fx-background-color: #90CAF9; -fx-text-fill: #000000; -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;";
+        // Inactive button style - transparent background with gray text
+        String inactiveStyle = "-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 13px; -fx-padding: 8 20; -fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;";
 
         allMediaButton.setStyle(currentFilter == MediaFilter.ALL ? activeStyle : inactiveStyle);
         photosButton.setStyle(currentFilter == MediaFilter.PHOTOS ? activeStyle : inactiveStyle);
         videosButton.setStyle(currentFilter == MediaFilter.VIDEOS ? activeStyle : inactiveStyle);
     }
+    
+    private void updateSidebarButtonStyles() {
+        // Active button style - primary color background with black text
+        String activeStyle = "-fx-background-color: #90CAF9; -fx-text-fill: #000000; -fx-font-size: 15px; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand; -fx-alignment: CENTER-LEFT; -fx-border-width: 0;";
+        // Inactive button style - transparent background with gray text
+        String inactiveStyle = "-fx-background-color: transparent; -fx-text-fill: #7a7d8a; -fx-font-size: 15px; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand; -fx-alignment: CENTER-LEFT; -fx-border-width: 0;";
 
-    private void updateFolderFilterButtonStyles() {
-        String activeStyle = "-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;";
-        String inactiveStyle = "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;";
-
-        // Update All Folders button
-        if (allFoldersButton != null) {
-            allFoldersButton.setStyle(currentFolderFilter == null ? activeStyle : inactiveStyle);
-        }
-
-        // Update individual folder buttons
-        for (Map.Entry<String, Button> entry : folderFilterButtonsMap.entrySet()) {
-            String folderPath = entry.getKey();
-            Button button = entry.getValue();
-            button.setStyle(folderPath.equals(currentFolderFilter) ? activeStyle : inactiveStyle);
-        }
+        homeButton.setStyle(!showOnlyFavorites && currentFolderFilter == null ? activeStyle : inactiveStyle);
+        favoritesButton.setStyle(showOnlyFavorites ? activeStyle : inactiveStyle);
     }
 
     /**
@@ -437,6 +610,11 @@ public class GalleryController {
         // Filter items
         displayedItems.clear();
         for (MediaItem item : mediaItems) {
+            // Apply favorites filter first
+            if (showOnlyFavorites && !item.isFavorite()) {
+                continue;
+            }
+            
             // Apply media type filter
             boolean matchesFilter = false;
             switch (currentFilter) {
@@ -481,11 +659,14 @@ public class GalleryController {
             noResultsBox.setAlignment(Pos.CENTER);
             noResultsBox.setStyle("-fx-padding: 40;");
 
-            String filterType = currentFilter == MediaFilter.PHOTOS ? "photos"
+            String filterType = showOnlyFavorites ? "favorites" 
+                    : currentFilter == MediaFilter.PHOTOS ? "photos"
                     : currentFilter == MediaFilter.VIDEOS ? "videos" : "items";
 
             Label noResultsIcon = new Label(
-                    currentFilter == MediaFilter.PHOTOS ? "📷" : currentFilter == MediaFilter.VIDEOS ? "🎬" : "🔍");
+                    showOnlyFavorites ? "♥"
+                    : currentFilter == MediaFilter.PHOTOS ? "📷" 
+                    : currentFilter == MediaFilter.VIDEOS ? "🎬" : "🔍");
             noResultsIcon.setStyle("-fx-font-size: 64px;");
 
             Label noResultsTitle = new Label("No " + filterType + " found");
@@ -519,13 +700,21 @@ public class GalleryController {
     }
 
     private void filterByFolder(String folderPath) {
+        // Set the current folder filter
+        currentFolderFilter = folderPath;
+        
         // Update header to show current folder
         String folderName = new File(folderPath).getName();
-        breadcrumbLabel.setText("All Folders / " + folderName);
-        folderTitleLabel.setText(folderName);
+        
+        if (showOnlyFavorites) {
+            breadcrumbLabel.setText("Favorites / " + folderName);
+            folderTitleLabel.setText("Favorites in " + folderName);
+        } else {
+            breadcrumbLabel.setText("All Folders / " + folderName);
+            folderTitleLabel.setText(folderName);
+        }
 
-        // Apply filters (this will be handled by applyFiltersAndSort with folder
-        // context)
+        // Apply filters (this will now filter by the currentFolderFilter)
         applyFiltersAndSort();
     }
 
@@ -562,50 +751,94 @@ public class GalleryController {
         String folderPath = folder.getAbsolutePath();
         String folderName = folder.getName();
 
-        HBox folderCard = new HBox(10);
+        HBox folderCard = new HBox(12);
         folderCard.setAlignment(Pos.CENTER_LEFT);
         folderCard.setStyle(
-                "-fx-background-color: #000000; -fx-padding: 10; -fx-background-radius: 8; -fx-cursor: hand;");
+                "-fx-background-color: transparent; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
 
-        Label folderLabel = new Label("📁 " + folderName);
-        folderLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 13px;");
+        Label folderIcon = new Label("📁");
+        folderIcon.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 18px;");
+
+        Label folderLabel = new Label(folderName);
+        folderLabel.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px;");
         folderLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(folderLabel, Priority.ALWAYS);
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        folderCard.getChildren().addAll(folderIcon, folderLabel);
 
-        Button removeBtn = new Button("✕");
-        removeBtn.setStyle(
-                "-fx-background-color: #f38ba8; -fx-text-fill: #1e1e2e; -fx-font-size: 10px; -fx-padding: 4 8; -fx-background-radius: 4; -fx-cursor: hand;");
-        removeBtn.setOnAction(e -> removeFolder(folderPath));
-
-        folderCard.getChildren().addAll(folderLabel, spacer, removeBtn);
-
-        // Click to filter by this folder
+        // Single click to filter by this folder
         folderCard.setOnMouseClicked(e -> {
-            if (e.getTarget() != removeBtn && !removeBtn.equals(e.getTarget())) {
+            if (e.getClickCount() == 1) {
                 filterByFolder(folderPath);
+            } else if (e.getClickCount() == 2) {
+                // Double click to remove/close folder
+                removeFolder(folderPath);
             }
         });
 
-        // Hover effect
-        folderCard.setOnMouseEntered(e -> folderCard.setStyle(
-                "-fx-background-color: #2d3142; -fx-padding: 10; -fx-background-radius: 8; -fx-cursor: hand;"));
-        folderCard.setOnMouseExited(e -> folderCard.setStyle(
-                "-fx-background-color: #000000; -fx-padding: 10; -fx-background-radius: 8; -fx-cursor: hand;"));
+        // Hover effect with #37474F color
+        folderCard.setOnMouseEntered(e -> {
+            folderCard.setStyle(
+                "-fx-background-color: #37474F; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
+            folderLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px;");
+            folderIcon.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 18px;");
+        });
+        folderCard.setOnMouseExited(e -> {
+            folderCard.setStyle(
+                "-fx-background-color: transparent; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
+            folderLabel.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px;");
+            folderIcon.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 18px;");
+        });
 
         folderList.getChildren().add(folderCard);
         folderCards.put(folderPath, folderCard);
+    }
+    
+    private void addAllFoldersOption() {
+        // Check if "All Folders" already exists
+        if (folderCards.containsKey("ALL_FOLDERS")) {
+            return;
+        }
+        
+        HBox allFoldersCard = new HBox(12);
+        allFoldersCard.setAlignment(Pos.CENTER_LEFT);
+        allFoldersCard.setStyle(
+                "-fx-background-color: transparent; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
 
-        // Add folder filter button to header
-        Button folderFilterButton = new Button("📁 " + folderName);
-        folderFilterButton.setStyle(
-                "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 13px; -fx-padding: 8 16; -fx-background-radius: 6; -fx-cursor: hand;");
-        folderFilterButton.setOnAction(e -> onFolderFilterClick(folderPath));
+        Label folderIcon = new Label("📂");
+        folderIcon.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 18px;");
 
-        folderFilterButtons.getChildren().add(folderFilterButton);
-        folderFilterButtonsMap.put(folderPath, folderFilterButton);
+        Label folderLabel = new Label("All Folders");
+        folderLabel.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-font-weight: bold;");
+        folderLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(folderLabel, Priority.ALWAYS);
+
+        allFoldersCard.getChildren().addAll(folderIcon, folderLabel);
+
+        // Click to show all folders
+        allFoldersCard.setOnMouseClicked(e -> {
+            currentFolderFilter = null;
+            updateHeaderInfo();
+            applyFiltersAndSort();
+        });
+
+        // Hover effect with #37474F color
+        allFoldersCard.setOnMouseEntered(e -> {
+            allFoldersCard.setStyle(
+                "-fx-background-color: #37474F; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
+            folderLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px; -fx-font-weight: bold;");
+            folderIcon.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 18px;");
+        });
+        allFoldersCard.setOnMouseExited(e -> {
+            allFoldersCard.setStyle(
+                "-fx-background-color: transparent; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
+            folderLabel.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px; -fx-font-weight: bold;");
+            folderIcon.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 18px;");
+        });
+
+        // Add at the beginning of the folder list
+        folderList.getChildren().add(0, allFoldersCard);
+        folderCards.put("ALL_FOLDERS", allFoldersCard);
     }
 
     private void removeFolder(String folderPath) {
@@ -613,12 +846,6 @@ public class GalleryController {
         HBox card = folderCards.remove(folderPath);
         if (card != null) {
             folderList.getChildren().remove(card);
-        }
-
-        // Remove folder filter button
-        Button filterButton = folderFilterButtonsMap.remove(folderPath);
-        if (filterButton != null) {
-            folderFilterButtons.getChildren().remove(filterButton);
         }
 
         // Reset folder filter if the removed folder was selected
@@ -662,10 +889,15 @@ public class GalleryController {
                     }
                     if (!alreadyExists) {
                         mediaItems.add(newItem);
+                        // Check if this item is in favorites
+                        if (favoritePaths.contains(newItem.getPath())) {
+                            newItem.setFavorite(true);
+                        }
                     }
                 }
 
                 // Only add folders that contain media files
+                boolean isFirstFolder = selectedFolders.isEmpty();
                 for (Map.Entry<String, Integer> entry : folderMediaCount.entrySet()) {
                     String folderPath = entry.getKey();
                     int mediaCount = entry.getValue();
@@ -675,6 +907,11 @@ public class GalleryController {
                         selectedFolders.add(folderPath);
                         addFolderToSidebar(new File(folderPath));
                     }
+                }
+                
+                // Add "All Folders" option if this is the first folder or if it doesn't exist yet
+                if (isFirstFolder && !selectedFolders.isEmpty()) {
+                    addAllFoldersOption();
                 }
 
                 refreshGallery();
@@ -1873,6 +2110,42 @@ public class GalleryController {
         Region rightSpacer = new Region();
         HBox.setHgrow(rightSpacer, Priority.ALWAYS);
 
+        // Favorite button
+        Button favoriteButton = new Button(item.isFavorite() ? "♥" : "♡");
+        favoriteButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: " + (item.isFavorite() ? "#90CAF9" : "#cdd6f4") + "; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+        favoriteButton.setTooltip(new Tooltip(item.isFavorite() ? "Remove from Favorites" : "Add to Favorites"));
+        favoriteButton.setFocusTraversable(false);
+        favoriteButton.setOnAction(e -> {
+            item.setFavorite(!item.isFavorite());
+            if (item.isFavorite()) {
+                favoritePaths.add(item.getPath());
+                favoriteButton.setText("♥");
+                favoriteButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #90CAF9; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+                favoriteButton.setTooltip(new Tooltip("Remove from Favorites"));
+            } else {
+                favoritePaths.remove(item.getPath());
+                favoriteButton.setText("♡");
+                favoriteButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+                favoriteButton.setTooltip(new Tooltip("Add to Favorites"));
+            }
+            SessionManager.saveFavorites(favoritePaths);
+        });
+        favoriteButton.setOnMouseEntered(e -> {
+            if (item.isFavorite()) {
+                favoriteButton.setStyle("-fx-background-color: #45475a; -fx-text-fill: #90CAF9; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;");
+            } else {
+                favoriteButton.setStyle("-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;");
+            }
+        });
+        favoriteButton.setOnMouseExited(e -> {
+            if (item.isFavorite()) {
+                favoriteButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #90CAF9; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+            } else {
+                favoriteButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+            }
+        });
+
         // Rotate button (right side, after filename)
         Button rotateButton = new Button("↻");
         rotateButton.setStyle(
@@ -1885,7 +2158,7 @@ public class GalleryController {
                 "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;"));
         rotateButton.setOnAction(e -> rotateAction.run());
 
-        topBar.getChildren().addAll(closeButton, leftSpacer, filenameLabel, rightSpacer, rotateButton);
+        topBar.getChildren().addAll(closeButton, leftSpacer, filenameLabel, rightSpacer, favoriteButton, rotateButton);
         return topBar;
     }
 

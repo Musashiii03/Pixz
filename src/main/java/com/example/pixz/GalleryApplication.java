@@ -8,45 +8,42 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 public class GalleryApplication extends Application {
-    private boolean isMaximized = true;
-    private double restoreX, restoreY, restoreWidth, restoreHeight;
     private GalleryController controller; // Store controller reference for cleanup
 
     @Override
     public void start(Stage stage) throws IOException {
-        // Add shutdown hook to ensure cleanup on unexpected exit
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-
-        }));
-
-        // Remove default window decorations
-        stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
-        stage.setFullScreenExitHint("");
-
-        FXMLLoader fxmlLoader = new FXMLLoader(GalleryApplication.class.getResource("gallery-view.fxml"));
-        javafx.scene.Parent root = fxmlLoader.load();
-
-        // Create custom title bar
-        javafx.scene.layout.HBox titleBar = createTitleBar(stage);
-        titleBar.setId("customTitleBar"); // Add ID so controller can find it
-
-        // Wrap content with title bar
-        javafx.scene.layout.BorderPane mainContainer = new javafx.scene.layout.BorderPane();
-        mainContainer.setTop(titleBar);
-        mainContainer.setCenter(root);
-
-        Scene scene = new Scene(mainContainer, 1280, 720);
-        scene.getStylesheets().add(getClass().getResource("dark-theme.css").toExternalForm());
-
-        // Pass title bar reference to controller
-        controller = fxmlLoader.getController();
-        controller.setCustomTitleBar(titleBar);
-
-        // Set application icon with multiple sizes for better taskbar display
         try {
-            // Load multiple PNG icon sizes - prioritize larger sizes first for better Windows taskbar display
-            stage.getIcons().addAll(
-                    new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_512x512.png")),
+            // Add shutdown hook to ensure cleanup on unexpected exit
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+
+            }));
+
+            // Remove default window decorations
+            stage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+            stage.setFullScreenExitHint("");
+
+            FXMLLoader fxmlLoader = new FXMLLoader(GalleryApplication.class.getResource("gallery-view.fxml"));
+            javafx.scene.Parent root = fxmlLoader.load();
+
+            // Create main container without floating controls overlay
+            Scene scene = new Scene(root, 1280, 720);
+            scene.getStylesheets().add(getClass().getResource("dark-theme.css").toExternalForm());
+
+            // Pass null for window controls reference (no longer using floating controls)
+            controller = fxmlLoader.getController();
+            controller.setCustomTitleBar(null);
+            
+            // Enable window dragging from top area
+            setupWindowDragging(scene, stage);
+            
+            // Enable window dragging from anywhere on the window
+            setupWindowDragging(scene, stage);
+
+            // Set application icon with multiple sizes for better taskbar display
+            try {
+                // Load multiple PNG icon sizes - prioritize larger sizes first for better Windows taskbar display
+                stage.getIcons().addAll(
+                        new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_512x512.png")),
                     new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_256x256.png")),
                     new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_128x128.png")),
                     new javafx.scene.image.Image(getClass().getResourceAsStream("pixz_96x96.png")),
@@ -66,14 +63,8 @@ public class GalleryApplication extends Application {
         stage.setMinHeight(600);
         stage.setScene(scene);
 
-        // Initialize restore values for a centered window
+        // Start maximized to visual bounds (respecting taskbar)
         javafx.geometry.Rectangle2D visualBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-        restoreWidth = 1280;
-        restoreHeight = 720;
-        restoreX = visualBounds.getMinX() + (visualBounds.getWidth() - restoreWidth) / 2;
-        restoreY = visualBounds.getMinY() + (visualBounds.getHeight() - restoreHeight) / 2;
-
-        // Maximize to visual bounds (respecting taskbar)
         stage.setX(visualBounds.getMinX());
         stage.setY(visualBounds.getMinY());
         stage.setWidth(visualBounds.getWidth());
@@ -100,126 +91,37 @@ public class GalleryApplication extends Application {
         });
 
         stage.show();
+        } catch (Exception e) {
+            System.err.println("ERROR in start method:");
+            e.printStackTrace();
+            throw e;
+        }
     }
 
-    private javafx.scene.layout.HBox createTitleBar(Stage stage) {
-        javafx.scene.layout.HBox titleBar = new javafx.scene.layout.HBox();
-        titleBar.setStyle("-fx-background-color: #000000; -fx-padding: 0;");
-        titleBar.setPrefHeight(35);
-        titleBar.setMinHeight(35);
-        titleBar.setMaxHeight(35);
-        titleBar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-
-        // App icon and title container
-        javafx.scene.layout.HBox leftContainer = new javafx.scene.layout.HBox(8);
-        leftContainer.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        leftContainer.setStyle("-fx-padding: 0 0 0 10;");
-
-        // App icon
-        javafx.scene.image.ImageView iconView = new javafx.scene.image.ImageView();
-        try {
-            // Use 64x64 source for better quality when scaled to 20x20
-            javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                    getClass().getResourceAsStream("pixz_64x64.png")
-            );
-            iconView.setImage(icon);
-            iconView.setFitWidth(20);
-            iconView.setFitHeight(20);
-            iconView.setPreserveRatio(true);
-            iconView.setSmooth(true); // Keep smooth for downscaling
-        } catch (Exception e) {
-            // Could not load icon, try fallback
-            try {
-                javafx.scene.image.Image icon = new javafx.scene.image.Image(
-                        getClass().getResourceAsStream("pixz_48x48.png"));
-                iconView.setImage(icon);
-                iconView.setFitWidth(20);
-                iconView.setFitHeight(20);
-                iconView.setPreserveRatio(true);
-                iconView.setSmooth(true);
-            } catch (Exception ex) {
-                // No icon available
-                System.err.println("Could not load any icon: " + ex.getMessage());
-            }
-        }
-
-        javafx.scene.control.Label titleLabel = new javafx.scene.control.Label("Pixz");
-        titleLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 13px; -fx-font-weight: normal;");
-
-        leftContainer.getChildren().addAll(iconView, titleLabel);
-
-        // Spacer
-        javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
-        javafx.scene.layout.HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-
-        // Window control buttons - use CSS class for proper styling
-        javafx.scene.control.Button minimizeBtn = new javafx.scene.control.Button("─");
-        minimizeBtn.getStyleClass().add("title-bar-button");
-        minimizeBtn.setMaxHeight(Double.MAX_VALUE);
-        minimizeBtn.setOnAction(e -> stage.setIconified(true));
-
-        javafx.scene.control.Button maximizeBtn = new javafx.scene.control.Button("⬜");
-        maximizeBtn.getStyleClass().add("title-bar-button");
-        maximizeBtn.setMaxHeight(Double.MAX_VALUE);
-        maximizeBtn.setOnAction(e -> toggleMaximize(stage));
-
-        javafx.scene.control.Button closeBtn = new javafx.scene.control.Button("✕");
-        closeBtn.getStyleClass().addAll("title-bar-button", "close-button");
-        closeBtn.setMaxHeight(Double.MAX_VALUE);
-        closeBtn.setOnAction(e -> stage.close());
-
-        titleBar.getChildren().addAll(leftContainer, spacer, minimizeBtn, maximizeBtn, closeBtn);
-
-        // Make title bar draggable
+    private void setupWindowDragging(Scene scene, Stage stage) {
         final double[] xOffset = { 0 };
         final double[] yOffset = { 0 };
-
-        titleBar.setOnMousePressed(event -> {
-            xOffset[0] = event.getSceneX();
-            yOffset[0] = event.getSceneY();
+        
+        scene.setOnMousePressed(event -> {
+            // Only allow dragging from top area (first 50px) and not when maximized
+            if (event.getSceneY() < 50 && !stage.isMaximized()) {
+                xOffset[0] = event.getSceneX();
+                yOffset[0] = event.getSceneY();
+            }
         });
-
-        titleBar.setOnMouseDragged(event -> {
-            if (!isMaximized) {
+        
+        scene.setOnMouseDragged(event -> {
+            // Only drag if we started from top area and not maximized
+            if (event.getSceneY() < 100 && !stage.isMaximized() && xOffset[0] != 0) {
                 stage.setX(event.getScreenX() - xOffset[0]);
                 stage.setY(event.getScreenY() - yOffset[0]);
             }
         });
-
-        // Double-click to maximize/restore
-        titleBar.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2) {
-                toggleMaximize(stage);
-            }
+        
+        scene.setOnMouseReleased(event -> {
+            xOffset[0] = 0;
+            yOffset[0] = 0;
         });
-
-        return titleBar;
-    }
-
-    private void toggleMaximize(Stage stage) {
-        javafx.geometry.Rectangle2D visualBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-
-        if (isMaximized) {
-            // Restore to previous size
-            stage.setX(restoreX);
-            stage.setY(restoreY);
-            stage.setWidth(restoreWidth);
-            stage.setHeight(restoreHeight);
-            isMaximized = false;
-        } else {
-            // Save current position and size before maximizing
-            restoreX = stage.getX();
-            restoreY = stage.getY();
-            restoreWidth = stage.getWidth();
-            restoreHeight = stage.getHeight();
-
-            // Maximize to visual bounds (respecting taskbar)
-            stage.setX(visualBounds.getMinX());
-            stage.setY(visualBounds.getMinY());
-            stage.setWidth(visualBounds.getWidth());
-            stage.setHeight(visualBounds.getHeight());
-            isMaximized = true;
-        }
     }
 
     @Override
@@ -237,6 +139,12 @@ public class GalleryApplication extends Application {
     }
 
     public static void main(String[] args) {
-        launch();
+        try {
+            launch();
+        } catch (Exception e) {
+            System.err.println("ERROR in main:");
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 }

@@ -15,6 +15,7 @@ public class MediaItem {
     private final MediaType type;
     private int width;
     private int height;
+    private boolean isFavorite;
 
     public enum MediaType {
         IMAGE, VIDEO
@@ -23,6 +24,7 @@ public class MediaItem {
     public MediaItem(File file, MediaType type) {
         this.file = file;
         this.type = type;
+        this.isFavorite = false;
     }
 
     public File getFile() {
@@ -72,5 +74,13 @@ public class MediaItem {
 
     public String getPath() {
         return file.getAbsolutePath();
+    }
+
+    public boolean isFavorite() {
+        return isFavorite;
+    }
+
+    public void setFavorite(boolean favorite) {
+        this.isFavorite = favorite;
     }
 }
