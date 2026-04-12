@@ -20,7 +20,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -28,8 +27,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
@@ -127,18 +124,13 @@ public class GalleryController {
     private String currentSortBy = "Name";
     private String currentFolderFilter = null; // null means all folders
     
-    // Flag to control mouse moved event response (prevent showing controls on keyboard navigation)
-    private boolean respondToMouseMoved = true;
     private double savedScrollPosition = 0.0; // Save scroll position when opening fullscreen
-
-    // Playback retry state
-    private MediaItem currentAttemptingItem = null;
-    private int currentRetryAttempts = 0;
-    private static final int MAX_RETRIES = 2;
 
     // Fullscreen viewer components
     private StackPane fullscreenViewer;
-    private MediaPlayer currentMediaPlayer;
+    private volatile boolean isClosingViewer = false;
+    private volatile boolean isFullscreenActive = false;
+    private volatile long fullscreenSessionId = 0; // Session ID to invalidate async callbacks
     private int currentMediaIndex = -1;
     private javafx.scene.Node headerNode; // Store header to restore later
 
@@ -149,16 +141,28 @@ public class GalleryController {
     // Remember last opened folder
     private File lastOpenedFolder = null;
 
-    // Track seekbar interaction for context-aware keyboard navigation
-    private boolean seekbarInteracted = false;
+    // New architecture: MediaController, VideoControlsBar, NavigationManager
+    private MediaController mediaController;
+    private VideoControlsBar controlsBar;
+    private NavigationManager navigationManager;
 
-    // Throttle navigation to prevent rapid switching issues
-    private long lastSwitchTime = 0;
-    private static final long SWITCH_THROTTLE_MS = 200;
+    // Scene-level key event filters (registered during fullscreen, removed on close)
+    private javafx.event.EventHandler<javafx.scene.input.KeyEvent> sceneKeyPressFilter;
+    private javafx.event.EventHandler<javafx.scene.input.KeyEvent> sceneKeyReleaseFilter;
 
     // Method to set custom title bar reference
     public void setCustomTitleBar(javafx.scene.layout.HBox titleBar) {
         this.customTitleBar = titleBar;
+    }
+    
+    // Method to check if fullscreen viewer is active
+    public boolean isFullscreenActive() {
+        return isFullscreenActive;
+    }
+    
+    // Method to get current fullscreen session ID
+    public long getFullscreenSessionId() {
+        return fullscreenSessionId;
     }
 
     @FXML
@@ -205,8 +209,8 @@ public class GalleryController {
         setupIconButtonHoverEffect(notificationButton, "transparent");
         setupIconButtonHoverEffect(settingsButton, "transparent");
         
-        // Setup macOS-style window control buttons
-        setupMacOSWindowControls();
+        // Setup Windows-style window control buttons
+        setupWindowsWindowControls();
         
         // Disable functionality for non-gallery tabs (as requested)
         collectionsTab.setOnAction(e -> {
@@ -237,17 +241,17 @@ public class GalleryController {
     }
     
     /**
-     * Setup macOS-style window control buttons
+     * Setup Windows-style window control buttons
      */
-    private void setupMacOSWindowControls() {
+    private void setupWindowsWindowControls() {
         // Get the stage reference
         Platform.runLater(() -> {
             javafx.stage.Stage stage = (javafx.stage.Stage) rootPane.getScene().getWindow();
             
-            // Close button (red) - closes the window
-            macCloseButton.setOnAction(e -> stage.close());
+            // Minimize button - minimizes the window
+            macMinimizeButton.setOnAction(e -> stage.setIconified(true));
             
-            // Maximize button (yellow) - toggles maximize/restore
+            // Maximize button - toggles maximize/restore
             macMaximizeButton.setOnAction(e -> {
                 if (stage.isMaximized()) {
                     stage.setMaximized(false);
@@ -256,26 +260,25 @@ public class GalleryController {
                 }
             });
             
-            // Minimize button (green) - minimizes the window
-            macMinimizeButton.setOnAction(e -> stage.setIconified(true));
+            // Close button - closes the window
+            macCloseButton.setOnAction(e -> stage.close());
             
-            // Add hover effects to show symbols on macOS buttons
-            setupMacButtonHoverEffect(macCloseButton, "×", "#ff5f57", "#e04b43");
-            setupMacButtonHoverEffect(macMaximizeButton, "□", "#ffbd2e", "#e5a81e");
-            setupMacButtonHoverEffect(macMinimizeButton, "−", "#28c840", "#1fb032");
+            // Add hover effects for Windows-style buttons
+            setupWindowsButtonHoverEffect(macMinimizeButton, false);
+            setupWindowsButtonHoverEffect(macMaximizeButton, false);
+            setupWindowsButtonHoverEffect(macCloseButton, true); // Close button has red hover
         });
     }
     
     /**
-     * Setup hover effect for macOS-style buttons to show symbols
+     * Setup hover effect for Windows-style buttons
      */
-    private void setupMacButtonHoverEffect(Button button, String symbol, String normalColor, String hoverColor) {
-        String normalStyle = "-fx-background-color: " + normalColor + "; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-text-fill: transparent; -fx-font-size: 10px; -fx-font-weight: bold;";
-        String hoverStyle = "-fx-background-color: " + hoverColor + "; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-text-fill: #000000; -fx-font-size: 10px; -fx-font-weight: bold;";
+    private void setupWindowsButtonHoverEffect(Button button, boolean isCloseButton) {
+        String normalStyle = "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-min-width: 46; -fx-min-height: 32; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-background-radius: 0;";
+        String hoverBgColor = isCloseButton ? "#e81123" : "#2d2d2d";
+        String hoverStyle = "-fx-background-color: " + hoverBgColor + "; -fx-text-fill: #ffffff; -fx-font-size: 14px; -fx-min-width: 46; -fx-min-height: 32; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-background-radius: 0;";
         
-        button.setText(symbol);
         button.setStyle(normalStyle);
-        
         button.setOnMouseEntered(e -> button.setStyle(hoverStyle));
         button.setOnMouseExited(e -> button.setStyle(normalStyle));
     }
@@ -763,31 +766,41 @@ public class GalleryController {
         folderLabel.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px;");
         folderLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(folderLabel, Priority.ALWAYS);
+        
+        // Close button as Label (visible only on hover)
+        Label closeButton = new Label("×");
+        closeButton.setStyle(
+                "-fx-text-fill: #f38ba8; -fx-font-size: 20px; " +
+                "-fx-cursor: hand; -fx-padding: 0 4;");
+        closeButton.setVisible(false);
+        closeButton.setOnMouseClicked(e -> {
+            removeFolder(folderPath);
+            e.consume(); // Prevent event from bubbling to folderCard
+        });
 
-        folderCard.getChildren().addAll(folderIcon, folderLabel);
+        folderCard.getChildren().addAll(folderIcon, folderLabel, closeButton);
 
         // Single click to filter by this folder
         folderCard.setOnMouseClicked(e -> {
             if (e.getClickCount() == 1) {
                 filterByFolder(folderPath);
-            } else if (e.getClickCount() == 2) {
-                // Double click to remove/close folder
-                removeFolder(folderPath);
             }
         });
 
-        // Hover effect with #37474F color
+        // Hover effect with #37474F color and show close button
         folderCard.setOnMouseEntered(e -> {
             folderCard.setStyle(
                 "-fx-background-color: #37474F; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
             folderLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 14px;");
             folderIcon.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 18px;");
+            closeButton.setVisible(true);
         });
         folderCard.setOnMouseExited(e -> {
             folderCard.setStyle(
                 "-fx-background-color: transparent; -fx-padding: 12 16; -fx-background-radius: 8; -fx-cursor: hand;");
             folderLabel.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 14px;");
             folderIcon.setStyle("-fx-text-fill: #7a7d8a; -fx-font-size: 18px;");
+            closeButton.setVisible(false);
         });
 
         folderList.getChildren().add(folderCard);
@@ -1203,51 +1216,27 @@ public class GalleryController {
     private void showFullscreenViewer(MediaItem item) {
         // Save current scroll position
         savedScrollPosition = galleryScrollPane.getVvalue();
-
-        // Reset seekbar interaction flag for new viewer session
-        seekbarInteracted = false;
+        
+        // Increment session ID to invalidate any pending callbacks from previous session
+        fullscreenSessionId++;
+        long currentSession = fullscreenSessionId;
+        
+        // Set fullscreen active flag
+        isFullscreenActive = true;
+        isClosingViewer = false;
 
         // Switch to fullscreen mode for media viewing
         Stage stage = (Stage) rootPane.getScene().getWindow();
         stage.setFullScreen(true);
 
+        // Disable JavaFX's built-in ESC→exit-fullscreen so only our scene filter
+        // controls when fullscreen ends. Without this, the Glass (native) layer exits
+        // fullscreen before our filter fires, causing a race condition.
+        stage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.NO_MATCH);
+
         // Create fullscreen viewer overlay
         fullscreenViewer = new StackPane();
         fullscreenViewer.setStyle("-fx-background-color: #000000;");
-
-        if (item.getType() == MediaItem.MediaType.IMAGE) {
-            // Create rotate action for images
-            Runnable rotateAction = () -> {
-                // Get the imageContainer from userData
-                Object userData = fullscreenViewer.getUserData();
-                if (userData instanceof Pane) {
-                    Pane imageContainer = (Pane) userData;
-                    double currentRotation = imageContainer.getRotate();
-                    double newRotation = currentRotation + 90;
-                    imageContainer.setRotate(newRotation);
-                    imageContainer.requestLayout();
-                }
-            };
-            HBox topBar = createTopBar(item, rotateAction);
-            int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
-            setupImageViewer(fullscreenViewer, item, topBar, initialRotation);
-        } else {
-            // Create rotate action for videos
-            Runnable rotateAction = () -> {
-                // Get the videoContainer from userData
-                Object userData = fullscreenViewer.getUserData();
-                if (userData instanceof Pane) {
-                    Pane videoContainer = (Pane) userData;
-                    double currentRotation = videoContainer.getRotate();
-                    double newRotation = currentRotation + 90;
-                    videoContainer.setRotate(newRotation);
-                    videoContainer.requestLayout();
-                }
-            };
-            HBox topBar = createTopBar(item, rotateAction);
-            int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
-            setupVideoViewer(fullscreenViewer, item, topBar, initialRotation);
-        }
 
         // Hide sidebar when viewing media
         sidebar.setVisible(false);
@@ -1263,94 +1252,72 @@ public class GalleryController {
         rootPane.setTop(null);
         rootPane.setCenter(fullscreenViewer);
 
-        // Handle keyboard events
-        fullscreenViewer.setOnKeyPressed(event -> {
+        // Initialize new architecture components
+        MediaView mediaView = new MediaView();
+        Pane videoContainer = new Pane();
 
-            if (event.getCode() == KeyCode.ESCAPE) {
-                closeFullscreenViewer();
-            } else if (event.getCode() == KeyCode.F || event.getCode() == KeyCode.F11) {
-                toggleFullscreen();
-            } else if (event.getCode() == KeyCode.SPACE) {
-                if (currentMediaPlayer != null) {
-                    if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
-                        currentMediaPlayer.pause();
-                    } else {
-                        currentMediaPlayer.play();
-                    }
-                }
-            } else if (event.getCode() == KeyCode.M) {
-                // Mute/unmute with M key
-                if (currentMediaPlayer != null) {
-                    if (currentMediaPlayer.getVolume() > 0) {
-                        currentMediaPlayer.setVolume(0);
-                    } else {
-                        currentMediaPlayer.setVolume(1.0);
-                    }
-                }
-            } else if (event.getCode() == KeyCode.R) {
-                // Rotate with R key
-                Object userData = fullscreenViewer.getUserData();
-                if (userData instanceof Pane) {
-                    Pane container = (Pane) userData;
-                    double currentRotation = container.getRotate();
-                    double newRotation = currentRotation + 90;
-                    container.setRotate(newRotation);
-                    container.requestLayout();
-                }
-            } else {
-                // Media Type specific navigation/seeking
-                // Fix: Use current item from list instead of captured 'item' variable which is
-                // stale after navigation
-                MediaItem currentItem = displayedItems.get(currentMediaIndex);
+        mediaController = new MediaController(mediaView);
+        controlsBar = new VideoControlsBar(mediaController, mediaView, videoContainer);
+        navigationManager = new NavigationManager(
+            displayedItems,
+            fullscreenViewer,
+            mediaController,
+            controlsBar,
+            () -> rebuildTopBar(),
+            this::closeFullscreenViewer,
+            this::toggleFullscreen,
+            this::isFullscreenActive,
+            currentSession,  // Pass current session ID
+            this  // Pass GalleryController reference for session validation
+        );
 
-                if (currentItem.getType() == MediaItem.MediaType.VIDEO) {
-                    if (event.isShiftDown()) {
-                        // Shift+N/P always navigate between videos
-                        if (event.getCode() == KeyCode.N) {
-                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
-                            navigateToNextMedia();
-                        } else if (event.getCode() == KeyCode.P) {
-                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
-                            navigateToPreviousMedia();
-                        }
-                    } else if (seekbarInteracted) {
-                        // Seekbar mode: Arrow keys seek within video
-                        if (event.getCode() == KeyCode.RIGHT) {
-                            if (currentMediaPlayer != null) {
-                                currentMediaPlayer
-                                        .seek(currentMediaPlayer.getCurrentTime().add(javafx.util.Duration.seconds(5)));
-                            }
-                        } else if (event.getCode() == KeyCode.LEFT) {
-                            if (currentMediaPlayer != null) {
-                                currentMediaPlayer.seek(
-                                        currentMediaPlayer.getCurrentTime().subtract(javafx.util.Duration.seconds(5)));
-                            }
-                        }
-                    } else {
-                        // Default mode: Arrow keys navigate between videos (like images)
-                        if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
-                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
-                            navigateToNextMedia();
-                        } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
-                            respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
-                            navigateToPreviousMedia();
-                        }
-                    }
-                } else {
-                    // IMAGE navigation
-                    if (event.getCode() == KeyCode.RIGHT || event.getCode() == KeyCode.DOWN) {
-                        respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
-                        navigateToNextMedia();
-                    } else if (event.getCode() == KeyCode.LEFT || event.getCode() == KeyCode.UP) {
-                        respondToMouseMoved = false; // Disable mouse moved response during keyboard navigation
-                        navigateToPreviousMedia();
-                    }
-                }
+        // Set current index and switch to media
+        navigationManager.setCurrentIndex(currentMediaIndex);
+        navigationManager.switchToMedia(item);
+
+        // Register key handlers at the SCENE level — this is the only approach that
+        // works unconditionally, regardless of which node has focus. Scene-level filters
+        // fire for every key event before any node handler runs.
+        // JavaFX's native ESC handler exits full-screen before dispatching the key event,
+        // so our ESC handling here also catches that case.
+        javafx.scene.Scene scene = rootPane.getScene();
+        sceneKeyPressFilter = event -> {
+            if (navigationManager != null) {
+                navigationManager.handleKeyPress(event.getCode(), event.isShiftDown());
+                event.consume();
             }
-        });
-        Platform.runLater(() -> {
-            fullscreenViewer.requestFocus();
-        });
+        };
+        sceneKeyReleaseFilter = event -> {
+            if (navigationManager != null) {
+                navigationManager.handleKeyRelease(event.getCode());
+                event.consume();
+            }
+        };
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, sceneKeyPressFilter);
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_RELEASED, sceneKeyReleaseFilter);
+
+        Platform.runLater(() -> fullscreenViewer.requestFocus());
+    }
+
+    // Helper method to rebuild top bar after navigation
+    private void rebuildTopBar() {
+        MediaItem currentItem = navigationManager.getCurrentItem();
+        if (currentItem != null && fullscreenViewer != null) {
+            // Create rotate action
+            Runnable rotateAction = () -> {
+                if (navigationManager != null) {
+                    navigationManager.rotateContent();
+                }
+            };
+            HBox topBar = createTopBar(currentItem, rotateAction);
+            
+            // FIX #5: Ensure top bar is aligned to top
+            StackPane.setAlignment(topBar, Pos.TOP_CENTER);
+            
+            // Find and replace existing top bar if present
+            fullscreenViewer.getChildren().removeIf(node -> node instanceof HBox);
+            fullscreenViewer.getChildren().add(topBar);
+        }
     }
 
     private void setupImageViewer(StackPane container, MediaItem item, HBox topBar, int initialRotation) {
@@ -1462,26 +1429,23 @@ public class GalleryController {
                 javafx.util.Duration.seconds(3));
         idleTimer.setOnFinished(ev -> fadeOutTop.play());
 
-        // Only respond to actual mouse movement, not synthetic events from keyboard navigation
+        // Only respond to actual mouse movement
         imageStack.setOnMouseMoved(e -> {
-            if (respondToMouseMoved) {
-                if (topBar.getOpacity() < 1.0) {
-                    fadeInTop.play();
-                    topBar.setMouseTransparent(false);
-                }
-                topBar.setOpacity(1.0);
-                imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
-                idleTimer.playFromStart();
+            if (topBar.getOpacity() < 1.0) {
+                fadeInTop.play();
+                topBar.setMouseTransparent(false);
             }
+            topBar.setOpacity(1.0);
+            imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
+            idleTimer.playFromStart();
         });
 
-        // Re-enable mouse moved response on actual mouse interaction
+        // Re-enable on mouse interaction
         imageStack.setOnMouseEntered(e -> {
-            respondToMouseMoved = true;
+            // Mouse entered
         });
 
         imageStack.setOnMouseDragged(e -> {
-            respondToMouseMoved = true;
             if (topBar.getOpacity() < 1.0) {
                 fadeInTop.play();
                 topBar.setMouseTransparent(false);
@@ -1501,583 +1465,12 @@ public class GalleryController {
         container.setUserData(imageContainer);
     }
 
-    private void setupVideoViewer(StackPane container, MediaItem item, HBox topBar, int initialRotation) {
-        // Video in center with proper constraints
-        try {
-            Media media = new Media(item.getFile().toURI().toString());
-            currentMediaPlayer = new MediaPlayer(media);
-            MediaView mediaView = new MediaView(currentMediaPlayer);
-            
-            mediaView.setPreserveRatio(true);
-            mediaView.setSmooth(true);
-
-            // Ensure MediaView is visible and rendered
-            mediaView.setVisible(true);
-            mediaView.setManaged(true);
-
-            // Disable looping by default (1 cycle)
-            currentMediaPlayer.setCycleCount(1);
-
-            // Track if video actually started playing
-            final boolean[] hasPlayed = { false };
-            final boolean[] videoFrameRendered = { false };
-
-            currentMediaPlayer.statusProperty().addListener((obs, oldStatus, newStatus) -> {
-                if (newStatus == MediaPlayer.Status.PLAYING) {
-                    hasPlayed[0] = true;
-                }
-
-                // Debug: Log status changes
-                MediaMetadataUtils.logDebug("Video status changed: " + oldStatus + " -> " + newStatus);
-            });
-
-            // Monitor current time to detect if video is actually progressing
-            currentMediaPlayer.currentTimeProperty().addListener((obs, oldTime, newTime) -> {
-                if (newTime.greaterThan(javafx.util.Duration.millis(100))) {
-                    videoFrameRendered[0] = true;
-                }
-            });
-
-            // Error handler - detect codec errors and handle appropriately
-            currentMediaPlayer.setOnError(() -> {
-                javafx.scene.media.MediaException error = currentMediaPlayer.getError();
-                String errorMessage = error != null ? error.getMessage() : "Unknown error";
-
-                // Check if it's a codec/format error (no point retrying)
-                boolean isCodecError = errorMessage.contains("ERROR_MEDIA_INVALID") ||
-                        errorMessage.contains("ERROR_MEDIA_UNSUPPORTED") ||
-                        errorMessage.contains("MEDIA_UNSUPPORTED");
-
-                if (isCodecError) {
-                    // Codec error - show error immediately, don't retry
-
-                    showVideoErrorUI(item, "Unsupported video format",
-                            "This video uses a codec that JavaFX cannot play. You can open it in your system's video player.");
-                    return;
-                }
-
-                // For other errors, try retry logic
-                if (currentRetryAttempts < MAX_RETRIES) {
-
-                    currentRetryAttempts++;
-
-                    // Run on next pulse to ensure clean state
-                    Platform.runLater(() -> switchToMedia(item));
-                    return;
-                }
-
-                // Wait a bit to see if video recovers and starts playing
-                javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
-                        javafx.util.Duration.seconds(1));
-                delay.setOnFinished(e -> {
-                    if (!hasPlayed[0]) {
-                        // Video truly failed - show error UI
-                        showVideoErrorUI(item, "Cannot play this video",
-                                "This video format is not supported or the file may be corrupted.");
-                    }
-                });
-                delay.play();
-            });
-
-            // Create a constrained container using Pane
-            Pane videoContainer = new Pane() {
-                @Override
-                protected void layoutChildren() {
-                    super.layoutChildren();
-                    double containerWidth = getWidth();
-                    double containerHeight = getHeight();
-
-                    if (containerWidth > 0 && containerHeight > 0 &&
-                            currentMediaPlayer != null && currentMediaPlayer.getMedia() != null) {
-                        double videoWidth = currentMediaPlayer.getMedia().getWidth();
-                        double videoHeight = currentMediaPlayer.getMedia().getHeight();
-
-                        if (videoWidth > 0 && videoHeight > 0) {
-
-                            // Check if rotated 90 or 270 degrees
-                            double currentRotation = getRotate();
-                            boolean isRotated90 = (Math.abs(currentRotation % 180) == 90);
-
-                            if (isRotated90) {
-                                // Swap dimensions for aspect ratio calculation
-                                double temp = videoWidth;
-                                videoWidth = videoHeight;
-                                videoHeight = temp;
-                            }
-
-                            double videoRatio = videoWidth / videoHeight;
-                            double containerRatio = containerWidth / containerHeight;
-
-                            double newWidth, newHeight;
-
-                            if (videoRatio > containerRatio) {
-                                // Video is wider - fit to width
-                                newWidth = containerWidth;
-                                newHeight = containerWidth / videoRatio;
-                            } else {
-                                // Video is taller - fit to height
-                                newHeight = containerHeight;
-                                newWidth = containerHeight * videoRatio;
-                            }
-
-                            if (isRotated90) {
-                                mediaView.setFitWidth(newHeight);
-                                mediaView.setFitHeight(newWidth);
-                            } else {
-                                mediaView.setFitWidth(newWidth);
-                                mediaView.setFitHeight(newHeight);
-                            }
-
-                            // Center the video
-                            double x = (containerWidth - mediaView.getFitWidth()) / 2;
-                            double y = (containerHeight - mediaView.getFitHeight()) / 2;
-                            mediaView.relocate(x, y);
-                        }
-                    }
-                }
-            };
-            videoContainer.getChildren().add(mediaView);
-            videoContainer.setStyle("-fx-background-color: #000000;");
-            videoContainer.setVisible(true);
-            videoContainer.setManaged(true);
-
-            // Wait for media to be ready, then play with slight delay
-            currentMediaPlayer.setOnReady(() -> {
-                videoContainer.requestLayout();
-
-                // Small delay before playing for stability
-                javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
-                        javafx.util.Duration.millis(300));
-                delay.setOnFinished(e -> {
-                    currentMediaPlayer.play();
-                    currentMediaPlayer.setVolume(1.0);
-                    videoContainer.requestLayout();
-                });
-                delay.play();
-            });
-
-            // Container for controls
-            StackPane videoStack = new StackPane();
-            videoStack.getChildren().add(videoContainer);
-
-            // --- Control Bar Setup ---
-            // Create a VBox to stack progress bar on top and controls below
-            VBox controlsContainer = new VBox(0);
-            controlsContainer.setStyle("-fx-background-color: rgba(0, 0, 0, 0.8);");
-            controlsContainer.setMaxWidth(Double.MAX_VALUE);
-            controlsContainer.setMaxHeight(Region.USE_PREF_SIZE); // Don't expand vertically
-
-            // Progress bar container with hover preview
-            StackPane progressContainer = new StackPane();
-            progressContainer.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
-            progressContainer.setMaxWidth(Double.MAX_VALUE);
-            progressContainer.setMinHeight(8);
-            progressContainer.setMaxHeight(8);
-
-            // Seek Slider (styled as progress bar)
-            javafx.scene.control.Slider seekSlider = new javafx.scene.control.Slider();
-            seekSlider.setMaxWidth(Double.MAX_VALUE);
-            seekSlider.setStyle("-fx-padding: 0;");
-            seekSlider.setDisable(true); // Initially disabled
-            seekSlider.setFocusTraversable(false); // logic for focus stealing prevention
-
-            progressContainer.getChildren().add(seekSlider);
-
-            // Add hover effect to slider - make it pop out and brighter
-            seekSlider.setOnMouseEntered(e -> {
-                seekSlider.setScaleY(1.8); // Make it bigger vertically (pop out effect)
-                seekSlider.setStyle("-fx-padding: 0; -fx-opacity: 1.0;"); // Brighter
-            });
-
-            seekSlider.setOnMouseExited(e -> {
-                seekSlider.setScaleY(1.0); // Return to normal size
-                seekSlider.setStyle("-fx-padding: 0; -fx-opacity: 0.8;"); // Normal brightness
-            });
-
-            // Set initial opacity
-            seekSlider.setOpacity(0.8);
-
-            // Controls bar with buttons and time
-            HBox controlsBar = new HBox(15);
-            controlsBar.setAlignment(Pos.CENTER_LEFT);
-            controlsBar.setStyle("-fx-background-color: transparent; -fx-padding: 10 20;");
-            controlsBar.setMaxWidth(Double.MAX_VALUE);
-            controlsBar.setMinHeight(50);
-
-            // Styles for buttons
-            String btnStyle = "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5;";
-            String activeBtnStyle = "-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5; -fx-background-radius: 4;";
-
-            // Capture player in local variable to prevent NPE if field is nulled
-            MediaPlayer player = currentMediaPlayer;
-
-            // 1. Play/Pause Button Logic
-            Runnable togglePlayPause = () -> {
-                if (player.getStatus() == MediaPlayer.Status.PLAYING) {
-                    player.pause();
-                } else {
-                    player.play();
-                }
-            };
-
-            Button playPauseBtn = new Button("⏸"); // Default to pause symbol as it auto-plays
-            playPauseBtn.setStyle(btnStyle);
-            playPauseBtn.setMinWidth(30);
-            playPauseBtn.setFocusTraversable(false);
-            playPauseBtn.setOnAction(e -> togglePlayPause.run());
-
-            Runnable updatePlayBtn = () -> {
-                if (player.getStatus() == MediaPlayer.Status.PLAYING) {
-                    playPauseBtn.setText("⏸");
-                } else {
-                    playPauseBtn.setText("▶");
-                }
-            };
-
-            player.statusProperty().addListener((obs, old, newVal) -> updatePlayBtn.run());
-
-            // Request focus on container to ensure key events are caught
-            Platform.runLater(container::requestFocus);
-
-            // 2. Volume Button with mute/unmute toggle
-            Button volumeBtn = new Button("🔊");
-            volumeBtn.setStyle(btnStyle);
-            volumeBtn.setMinWidth(30);
-            volumeBtn.setFocusTraversable(false);
-
-            // Toggle mute/unmute
-            Runnable toggleMute = () -> {
-                if (currentMediaPlayer.getVolume() > 0) {
-                    currentMediaPlayer.setVolume(0);
-                    volumeBtn.setText("🔇");
-                } else {
-                    currentMediaPlayer.setVolume(1.0);
-                    volumeBtn.setText("🔊");
-                }
-            };
-
-            volumeBtn.setOnAction(e -> toggleMute.run());
-
-            // Left spacer to push time to center
-            Region leftSpacer = new Region();
-            HBox.setHgrow(leftSpacer, Priority.ALWAYS);
-
-            // 3. Time Labels (centered)
-            Label currentTimeLabel = new Label("00:00");
-            currentTimeLabel.setStyle("-fx-text-fill: white; -fx-font-size: 13px;");
-
-            Label separatorLabel = new Label("/");
-            separatorLabel.setStyle("-fx-text-fill: #999999; -fx-font-size: 13px;");
-
-            Label totalTimeLabel = new Label("00:00");
-            totalTimeLabel.setStyle("-fx-text-fill: white; -fx-font-size: 13px;");
-
-            // Right spacer to keep time centered
-            Region rightSpacer = new Region();
-            HBox.setHgrow(rightSpacer, Priority.ALWAYS);
-
-            // 4. Loop Button (on the right) - starts OFF by default
-            Button loopBtn = new Button("🔁");
-            loopBtn.setTooltip(new Tooltip("Toggle Loop (Off)"));
-            loopBtn.setStyle(btnStyle); // Inactive style by default
-            loopBtn.setMinWidth(30);
-            loopBtn.setFocusTraversable(false);
-
-            // Track looping state manually for better control - starts as FALSE (off)
-            final boolean[] isLooping = { false };
-
-            loopBtn.setOnAction(e -> {
-                isLooping[0] = !isLooping[0];
-                MediaMetadataUtils.logDebug("Loop toggled: " + isLooping[0]);
-                if (isLooping[0]) {
-                    // Loop turned ON
-                    player.setCycleCount(MediaPlayer.INDEFINITE);
-                    loopBtn.setStyle(activeBtnStyle);
-                    loopBtn.setTooltip(new Tooltip("Toggle Loop (On)"));
-
-                    // If video was already at end, restart it
-                    if (player.getStatus() == MediaPlayer.Status.STOPPED ||
-                            player.getCurrentTime().greaterThanOrEqualTo(
-                                    player.getTotalDuration().subtract(javafx.util.Duration.millis(100)))) {
-                        player.seek(javafx.util.Duration.ZERO);
-                        player.play();
-                        playPauseBtn.setText("⏸");
-                    }
-                } else {
-                    // Loop turned OFF
-                    player.setCycleCount(1);
-                    loopBtn.setStyle(btnStyle);
-                    loopBtn.setTooltip(new Tooltip("Toggle Loop (Off)"));
-                }
-            });
-
-            // Robust loop fallback - only loops when isLooping[0] is true
-            // End of media handler
-            player.setOnEndOfMedia(() -> {
-                // Update slider to show end position
-                seekSlider.setValue(seekSlider.getMax());
-
-                if (!isLooping[0]) {
-                    // Loop is OFF - pause at end and reset to beginning
-                    MediaMetadataUtils.logDebug("EndOfMedia: Pausing (Loop OFF)");
-                    player.pause();
-                    player.seek(javafx.util.Duration.ZERO);
-                    playPauseBtn.setText("▶");
-                } else {
-                    // Loop is ON - restart video
-                    MediaMetadataUtils.logDebug("EndOfMedia: Forcing restart (Loop ON)");
-                    player.seek(javafx.util.Duration.ZERO);
-                    // Set cycle count again just in case
-                    player.setCycleCount(MediaPlayer.INDEFINITE);
-                    javafx.application.Platform.runLater(() -> player.play());
-                }
-            });
-
-            // Watch for status changes to catch "stuck" states - only restart if loop is ON
-            player.statusProperty().addListener((obs, oldStatus, newStatus) -> {
-                if (isLooping[0]
-                        && (newStatus == MediaPlayer.Status.PAUSED || newStatus == MediaPlayer.Status.STOPPED)) {
-                    // Check if we are at the end
-                    if (player.getCurrentTime().greaterThanOrEqualTo(
-                            player.getTotalDuration().subtract(javafx.util.Duration.millis(100)))) {
-                        MediaMetadataUtils
-                                .logDebug("Status " + newStatus + " at end with Loop ON. Forcing loop restart.");
-                        player.seek(javafx.util.Duration.ZERO);
-                        player.play();
-                    }
-                }
-            });
-            controlsBar.getChildren().addAll(playPauseBtn, volumeBtn, leftSpacer, currentTimeLabel, separatorLabel,
-                    totalTimeLabel, rightSpacer, loopBtn);
-
-            // Add progress bar and controls to container
-            controlsContainer.getChildren().addAll(progressContainer, controlsBar);
-
-            // Slider Logic
-            final boolean[] isUpdatingFromPlayer = { false };
-
-            // Format time helper
-            java.util.function.Function<Double, String> formatTime = (seconds) -> {
-                int mins = (int) (seconds / 60);
-                int secs = (int) (seconds % 60);
-                return String.format("%02d:%02d", mins, secs);
-            };
-
-            currentMediaPlayer.currentTimeProperty().addListener((obs, oldTime, newTime) -> {
-                if (seekSlider != null && !seekSlider.isValueChanging()) {
-                    isUpdatingFromPlayer[0] = true;
-                    seekSlider.setValue(newTime.toSeconds());
-                    currentTimeLabel.setText(formatTime.apply(newTime.toSeconds()));
-                    isUpdatingFromPlayer[0] = false;
-                }
-            });
-
-            Runnable onReady = () -> {
-                javafx.util.Duration total = currentMediaPlayer.getTotalDuration();
-                if (total != null && !total.isIndefinite() && !total.isUnknown()) {
-                    seekSlider.setMax(total.toSeconds());
-                    seekSlider.setDisable(false);
-                    totalTimeLabel.setText(formatTime.apply(total.toSeconds()));
-                }
-            };
-
-            if (currentMediaPlayer.getStatus() == MediaPlayer.Status.READY) {
-                onReady.run();
-            } else {
-                currentMediaPlayer.setOnReady(() -> {
-                    onReady.run();
-                    videoContainer.requestLayout();
-                });
-            }
-
-            currentMediaPlayer.totalDurationProperty().addListener((obs, oldD, newD) -> {
-                if (newD != null && !newD.isIndefinite() && !newD.isUnknown()) {
-                    seekSlider.setMax(newD.toSeconds());
-                    seekSlider.setDisable(false);
-                    totalTimeLabel.setText(formatTime.apply(newD.toSeconds()));
-                }
-            });
-
-            // Note: EndOfMedia handler is already set above with loop logic
-            // Don't override it here
-
-            // Detect seekbar interaction (mouse click or drag)
-            seekSlider.setOnMousePressed(e -> {
-                seekbarInteracted = true;
-            });
-
-            seekSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-                if (!isUpdatingFromPlayer[0] && !seekSlider.isValueChanging()) {
-                    currentMediaPlayer.seek(javafx.util.Duration.seconds(newVal.doubleValue()));
-                }
-            });
-
-            seekSlider.valueChangingProperty().addListener((obs, wasChanging, isChanging) -> {
-                if (isChanging) {
-                    // User started dragging
-                    seekbarInteracted = true;
-                }
-                if (!isChanging) {
-                    currentMediaPlayer.seek(javafx.util.Duration.seconds(seekSlider.getValue()));
-                }
-            });
-
-            // Add controls container to stack
-            videoStack.getChildren().add(controlsContainer);
-            StackPane.setAlignment(controlsContainer, Pos.BOTTOM_CENTER);
-
-            // Add top bar overlay
-            videoStack.getChildren().add(topBar);
-            StackPane.setAlignment(topBar, Pos.TOP_CENTER);
-
-            // --- Auto-Hide Logic for both top and bottom bars ---
-            controlsContainer.setOpacity(1.0); // Start visible
-            topBar.setOpacity(1.0); // Start visible
-
-            javafx.animation.FadeTransition fadeOutControls = new javafx.animation.FadeTransition(
-                    javafx.util.Duration.millis(500), controlsContainer);
-            fadeOutControls.setFromValue(1.0);
-            fadeOutControls.setToValue(0.0);
-
-            javafx.animation.FadeTransition fadeOutTop = new javafx.animation.FadeTransition(
-                    javafx.util.Duration.millis(500), topBar);
-            fadeOutTop.setFromValue(1.0);
-            fadeOutTop.setToValue(0.0);
-            fadeOutTop.setOnFinished(ev -> {
-                // Hide cursor when bars are hidden
-                videoStack.setCursor(javafx.scene.Cursor.NONE);
-                controlsContainer.setMouseTransparent(true);
-                topBar.setMouseTransparent(true);
-            });
-
-            javafx.animation.FadeTransition fadeInControls = new javafx.animation.FadeTransition(
-                    javafx.util.Duration.millis(200), controlsContainer);
-            fadeInControls.setFromValue(0.0);
-            fadeInControls.setToValue(1.0);
-
-            javafx.animation.FadeTransition fadeInTop = new javafx.animation.FadeTransition(
-                    javafx.util.Duration.millis(200), topBar);
-            fadeInTop.setFromValue(0.0);
-            fadeInTop.setToValue(1.0);
-            fadeInTop.setOnFinished(ev -> {
-                // Show cursor when bars are visible
-                videoStack.setCursor(javafx.scene.Cursor.DEFAULT);
-                controlsContainer.setMouseTransparent(false);
-                topBar.setMouseTransparent(false);
-            });
-
-            javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
-                    javafx.util.Duration.seconds(3));
-            idleTimer.setOnFinished(ev -> {
-                fadeOutControls.play();
-                fadeOutTop.play();
-            });
-
-            // Only respond to actual mouse movement, not synthetic events from keyboard navigation
-            videoStack.setOnMouseMoved(e -> {
-                if (respondToMouseMoved) {
-                    if (controlsContainer.getOpacity() < 1.0) {
-                        fadeInControls.play();
-                        fadeInTop.play();
-                        controlsContainer.setMouseTransparent(false);
-                        topBar.setMouseTransparent(false);
-                    }
-                    controlsContainer.setOpacity(1.0);
-                    topBar.setOpacity(1.0);
-                    videoStack.setCursor(javafx.scene.Cursor.DEFAULT);
-                    idleTimer.playFromStart();
-                }
-            });
-
-            // Re-enable mouse moved response on actual mouse interaction
-            videoStack.setOnMouseEntered(e -> {
-                respondToMouseMoved = true;
-            });
-
-            videoStack.setOnMouseDragged(e -> {
-                respondToMouseMoved = true;
-                if (controlsContainer.getOpacity() < 1.0) {
-                    fadeInControls.play();
-                    fadeInTop.play();
-                    controlsContainer.setMouseTransparent(false);
-                    topBar.setMouseTransparent(false);
-                }
-                controlsContainer.setOpacity(1.0);
-                topBar.setOpacity(1.0);
-                videoStack.setCursor(javafx.scene.Cursor.DEFAULT);
-                idleTimer.playFromStart();
-            });
-
-            // Also show on click
-            videoStack.setOnMouseClicked(e -> {
-                respondToMouseMoved = true; // Re-enable on click
-                if (controlsContainer.getOpacity() < 1.0) {
-                    fadeInControls.play();
-                    fadeInTop.play();
-                    idleTimer.playFromStart();
-                } else {
-                    // If clicking not on controls, toggle play/pause
-                    if (!controlsContainer.contains(controlsContainer.sceneToLocal(e.getSceneX(), e.getSceneY()))) {
-                        if (currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
-                            currentMediaPlayer.pause();
-                        } else {
-                            currentMediaPlayer.play();
-                        }
-                    }
-                }
-            });
-
-            // Start timer initially
-            idleTimer.play();
-
-            container.getChildren().add(videoStack);
-
-            // Set initial rotation
-            videoContainer.setRotate(initialRotation);
-
-            // Store reference to videoContainer for rotation
-            container.setUserData(videoContainer);
-
-            // Auto-play
-            currentMediaPlayer.setAutoPlay(true);
-
-            // Watchdog: If video is playing but time isn't progressing, try to restart
-            javafx.animation.Timeline watchdog = new javafx.animation.Timeline(
-                    new javafx.animation.KeyFrame(javafx.util.Duration.seconds(2), e -> {
-                        if (currentMediaPlayer != null &&
-                                currentMediaPlayer.getStatus() == MediaPlayer.Status.PLAYING &&
-                                !videoFrameRendered[0]) {
-                            MediaMetadataUtils
-                                    .logDebug("Video stuck - audio playing but no frames. Attempting restart...");
-                            // Video is stuck - try to restart
-                            currentMediaPlayer.stop();
-                            currentMediaPlayer.seek(javafx.util.Duration.ZERO);
-                            currentMediaPlayer.play();
-                        }
-                    }));
-            watchdog.setCycleCount(1);
-            watchdog.play();
-
-        } catch (Exception e) {
-
-            // Show error message
-            VBox errorBox = new VBox(20);
-            errorBox.setAlignment(Pos.CENTER);
-            errorBox.setStyle("-fx-padding: 20; -fx-background-color: #000000;");
-
-            Label errorLabel = new Label("Error loading video: " + item.getName());
-            errorLabel.setStyle("-fx-text-fill: #f38ba8; -fx-font-size: 18px;");
-
-            Button closeButton = new Button("✕ Close");
-            closeButton.setStyle(
-                    "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
-            closeButton.setOnAction(ev -> closeFullscreenViewer());
-
-            errorBox.getChildren().addAll(errorLabel, closeButton);
-
-            container.getChildren().add(errorBox);
-        }
-    }
+    // REMOVED: setupVideoViewer() - replaced by MediaController + VideoControlsBar + NavigationManager
+    // REMOVED: navigateToNextMedia() - replaced by NavigationManager.navigateNext()
+    // REMOVED: navigateToPreviousMedia() - replaced by NavigationManager.navigatePrevious()
+    // REMOVED: switchToMedia() - replaced by NavigationManager.switchToMedia()
+    // REMOVED: showVideoErrorUI() - replaced by NavigationManager error handling
+    // See Task 6 in implementation_plan.md
 
     private HBox createTopBar(MediaItem item, Runnable rotateAction) {
         HBox topBar = new HBox(15);
@@ -2162,152 +1555,8 @@ public class GalleryController {
         return topBar;
     }
 
-    private void navigateToNextMedia() {
-        // Throttle rapid navigation
-        long now = System.currentTimeMillis();
-        if (now - lastSwitchTime < SWITCH_THROTTLE_MS) {
-            return; // Ignore fast key presses
-        }
-        lastSwitchTime = now;
-
-        if (currentMediaIndex < displayedItems.size() - 1) {
-            currentMediaIndex++;
-            seekbarInteracted = false; // Reset to default navigation mode
-            switchToMedia(displayedItems.get(currentMediaIndex));
-        }
-    }
-
-    private void navigateToPreviousMedia() {
-        // Throttle rapid navigation
-        long now = System.currentTimeMillis();
-        if (now - lastSwitchTime < SWITCH_THROTTLE_MS) {
-            return; // Ignore fast key presses
-        }
-        lastSwitchTime = now;
-
-        if (currentMediaIndex > 0) {
-            currentMediaIndex--;
-            seekbarInteracted = false; // Reset to default navigation mode
-            switchToMedia(displayedItems.get(currentMediaIndex));
-        }
-    }
-
-    private void switchToMedia(MediaItem item) {
-        // Manage retry state
-        if (item != currentAttemptingItem) {
-            currentAttemptingItem = item;
-            currentRetryAttempts = 0;
-        }
-
-        // FULLY stop and dispose current media player
-        if (currentMediaPlayer != null) {
-            currentMediaPlayer.stop();
-            currentMediaPlayer.dispose();
-            currentMediaPlayer = null;
-        }
-
-        // Clear ImageViews before clearing children
-        if (fullscreenViewer != null) {
-            clearImageViewsRecursive(fullscreenViewer);
-        }
-
-        // Clear and rebuild the fullscreen viewer content
-        fullscreenViewer.getChildren().clear();
-
-        // Add delay before loading new media to prevent pipeline overlap
-        javafx.animation.PauseTransition delay = new javafx.animation.PauseTransition(
-                javafx.util.Duration.millis(150));
-        delay.setOnFinished(e -> {
-            if (item.getType() == MediaItem.MediaType.IMAGE) {
-                // Create rotate action for images
-                Runnable rotateAction = () -> {
-                    // Get the imageContainer from userData
-                    Object userData = fullscreenViewer.getUserData();
-                    if (userData instanceof Pane) {
-                        Pane imageContainer = (Pane) userData;
-                        double currentRotation = imageContainer.getRotate();
-                        double newRotation = currentRotation + 90;
-                        imageContainer.setRotate(newRotation);
-                        imageContainer.requestLayout();
-                    }
-                };
-                HBox topBar = createTopBar(item, rotateAction);
-                int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
-                setupImageViewer(fullscreenViewer, item, topBar, initialRotation);
-            } else {
-                // Create rotate action for videos
-                Runnable rotateAction = () -> {
-                    // Get the videoContainer from userData
-                    Object userData = fullscreenViewer.getUserData();
-                    if (userData instanceof Pane) {
-                        Pane videoContainer = (Pane) userData;
-                        double currentRotation = videoContainer.getRotate();
-                        double newRotation = currentRotation + 90;
-                        videoContainer.setRotate(newRotation);
-                        videoContainer.requestLayout();
-                    }
-                };
-                HBox topBar = createTopBar(item, rotateAction);
-                int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
-                setupVideoViewer(fullscreenViewer, item, topBar, initialRotation);
-            }
-
-            // Ensure focus for keyboard events
-            Platform.runLater(() -> {
-                fullscreenViewer.requestFocus();
-            });
-        });
-        delay.play();
-    }
-
-    private void showVideoErrorUI(MediaItem item, String title, String message) {
-        Platform.runLater(() -> {
-            // Check if we're still viewing the same item - prevent showing error after navigation
-            if (fullscreenViewer == null || currentAttemptingItem != item)
-                return;
-
-            VBox errorBox = new VBox(20);
-            errorBox.setAlignment(Pos.CENTER);
-            errorBox.setStyle("-fx-padding: 20; -fx-background-color: #000000;");
-
-            Label errorLabel = new Label(title);
-            errorLabel.setStyle("-fx-text-fill: #ff6b6b; -fx-font-size: 24px; -fx-font-weight: bold;");
-
-            Label detailLabel = new Label(item.getName());
-            detailLabel.setStyle("-fx-text-fill: #f2f2f2; -fx-font-size: 14px;");
-            detailLabel.setWrapText(true);
-            detailLabel.setMaxWidth(600);
-
-            Label reasonLabel = new Label(message);
-            reasonLabel.setStyle("-fx-text-fill: #999999; -fx-font-size: 12px;");
-            reasonLabel.setWrapText(true);
-            reasonLabel.setMaxWidth(600);
-
-            Button openExternalBtn = new Button("🎬 Open in System Player");
-            openExternalBtn.setStyle(
-                    "-fx-background-color: #89b4fa; -fx-text-fill: #1e1e2e; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
-            openExternalBtn.setOnAction(ev -> {
-                try {
-                    java.awt.Desktop.getDesktop().open(item.getFile());
-                } catch (Exception ex) {
-                    System.err.println("Failed to open video externally: " + ex.getMessage());
-                }
-            });
-
-            Button closeBtn = new Button("✕ Close");
-            closeBtn.setStyle(
-                    "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-padding: 10 20; -fx-background-radius: 6; -fx-cursor: hand;");
-            closeBtn.setOnAction(ev -> closeFullscreenViewer());
-
-            HBox buttonBox = new HBox(10, openExternalBtn, closeBtn);
-            buttonBox.setAlignment(Pos.CENTER);
-
-            errorBox.getChildren().addAll(errorLabel, detailLabel, reasonLabel, buttonBox);
-
-            fullscreenViewer.getChildren().clear();
-            fullscreenViewer.getChildren().add(errorBox);
-        });
-    }
+    // REMOVED: Old navigation methods - replaced by NavigationManager
+    // navigateToNextMedia(), navigateToPreviousMedia(), switchToMedia(), showVideoErrorUI()
 
     private void toggleFullscreen() {
         Stage stage = (Stage) rootPane.getScene().getWindow();
@@ -2315,47 +1564,87 @@ public class GalleryController {
     }
 
     private void closeFullscreenViewer() {
-        // Stop and dispose media player
-        if (currentMediaPlayer != null) {
-            currentMediaPlayer.stop();
-            currentMediaPlayer.dispose();
-            currentMediaPlayer = null;
+        // Guard against multiple calls
+        if (fullscreenViewer == null || isClosingViewer) {
+            return;
         }
 
-        // Clear all ImageViews in fullscreen viewer
-        if (fullscreenViewer != null) {
-            clearImageViewsRecursive(fullscreenViewer);
-        }
+        // KILL SWITCH: Increment session ID to invalidate ALL pending async callbacks
+        fullscreenSessionId++;
 
-        // Restore custom title bar
-        if (customTitleBar != null) {
-            customTitleBar.setVisible(true);
-            customTitleBar.setManaged(true);
-        }
+        // Set flags to block any pending callbacks
+        isClosingViewer = true;
+        isFullscreenActive = false;
 
-        // Restore sidebar visibility
-        sidebar.setVisible(true);
-        sidebar.setManaged(true);
-
-        // Restore header and gallery view
-        rootPane.setTop(headerNode);
-        rootPane.setCenter(galleryScrollPane);
-
-        // Restore scroll position after a short delay to ensure layout is complete
-        Platform.runLater(() -> {
-            galleryScrollPane.setVvalue(savedScrollPosition);
-        });
-
-        // Clear fullscreen viewer
-        fullscreenViewer = null;
+        // Re-enable ESC exit key (we disabled it in showFullscreenViewer)
+        Stage stage = (Stage) rootPane.getScene().getWindow();
+        stage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.keyCombination("Escape"));
 
         // Exit fullscreen mode
-        Stage stage = (Stage) rootPane.getScene().getWindow();
         stage.setFullScreen(false);
 
-        // Clear retry state
-        currentAttemptingItem = null;
-        currentRetryAttempts = 0;
+        try {
+            // Remove scene-level key filters so they don't fire during normal gallery use
+            javafx.scene.Scene scene = rootPane.getScene();
+            if (scene != null) {
+                if (sceneKeyPressFilter != null) {
+                    scene.removeEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, sceneKeyPressFilter);
+                    sceneKeyPressFilter = null;
+                }
+                if (sceneKeyReleaseFilter != null) {
+                    scene.removeEventFilter(javafx.scene.input.KeyEvent.KEY_RELEASED, sceneKeyReleaseFilter);
+                    sceneKeyReleaseFilter = null;
+                }
+            }
+
+            // Cleanup new architecture components
+            if (controlsBar != null) {
+                controlsBar.unbindFromPlayer();
+            }
+            if (mediaController != null) {
+                mediaController.disposeCurrentPlayer();
+            }
+
+            // Clear fullscreen container to prevent late UI updates
+            if (fullscreenViewer != null) {
+                fullscreenViewer.getChildren().clear();
+                fullscreenViewer.setOnMouseMoved(null);
+                clearImageViewsRecursive(fullscreenViewer);
+            }
+        } catch (Exception e) {
+            System.err.println("[closeFullscreenViewer] Cleanup error: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            // Always null references and restore the gallery, even if cleanup threw
+            navigationManager = null;
+            mediaController = null;
+            controlsBar = null;
+            fullscreenViewer = null;
+
+            // Restore custom title bar
+            if (customTitleBar != null) {
+                customTitleBar.setVisible(true);
+                customTitleBar.setManaged(true);
+            }
+
+            // Restore sidebar visibility
+            sidebar.setVisible(true);
+            sidebar.setManaged(true);
+
+            // Reset rootPane center safely
+            rootPane.setCenter(null);
+
+            // Restore header and gallery view
+            rootPane.setTop(headerNode);
+            rootPane.setCenter(galleryScrollPane);
+
+            // Restore focus to gallery
+            Platform.runLater(() -> {
+                galleryScrollPane.setVvalue(savedScrollPosition);
+                galleryScrollPane.requestFocus();
+                isClosingViewer = false;
+            });
+        }
     }
 
     /**
@@ -2383,23 +1672,18 @@ public class GalleryController {
     }
 
     public void shutdown() {
-
-        // Stop and dispose current media player
-        if (currentMediaPlayer != null) {
+        // Cleanup new architecture components
+        if (mediaController != null) {
             try {
-                currentMediaPlayer.stop();
-                currentMediaPlayer.dispose();
-                currentMediaPlayer = null;
-
+                mediaController.disposeCurrentPlayer();
             } catch (Exception e) {
-                System.err.println("Error disposing media player: " + e.getMessage());
+                System.err.println("Error disposing media controller: " + e.getMessage());
             }
         }
 
         // Clear all ImageViews to release image references
         try {
             clearGalleryImageViews();
-
         } catch (Exception e) {
             System.err.println("Error clearing gallery: " + e.getMessage());
         }

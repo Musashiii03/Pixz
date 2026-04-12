@@ -1,10 +1,12 @@
 package com.example.pixz;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 import javafx.application.Platform;
 import javafx.scene.SnapshotParameters;
@@ -20,6 +22,7 @@ import javafx.scene.media.MediaView;
  */
 public class ThumbnailGenerator {
     private static final int THUMBNAIL_SIZE = 300; // Larger thumbnails for better visibility
+    private static final String FFMPEG_COMMAND = "ffmpeg"; // Assumes FFmpeg is on PATH
 
     // Bounded thread pool - prevents decode storms
     private static final ExecutorService thumbnailExecutor = Executors.newFixedThreadPool(8);
@@ -27,6 +30,21 @@ public class ThumbnailGenerator {
     // Semaphore to limit concurrent thumbnail generation (8 in-flight max for
     // faster refresh)
     private static final Semaphore generationSemaphore = new Semaphore(8);
+
+    // FFmpeg availability check (one-time at class load)
+    private static final boolean FFMPEG_AVAILABLE;
+    static {
+        boolean available = false;
+        try {
+            Process p = new ProcessBuilder(FFMPEG_COMMAND, "-version")
+                .redirectErrorStream(true).start();
+            available = p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0;
+        } catch (Exception ignored) {}
+        FFMPEG_AVAILABLE = available;
+        if (!FFMPEG_AVAILABLE) {
+            System.out.println("[Pixz] FFmpeg not found — using JavaFX thumbnail fallback.");
+        }
+    }
 
     /**
      * Generate thumbnail for an image file with caching
@@ -119,34 +137,37 @@ public class ThumbnailGenerator {
             try {
                 generationSemaphore.acquire(); // Throttle concurrent generation
 
-                // Try JavaFX MediaPlayer (bundled with app)
-                tryJavaFXThumbnail(file, future);
+                // Try FFmpeg first (faster and more reliable), then fallback to JavaFX
+                boolean ffmpegSuccess = FFMPEG_AVAILABLE && tryFFmpegThumbnail(file, future);
+                
+                if (!ffmpegSuccess) {
+                    // Fallback to JavaFX MediaPlayer (bundled with app)
+                    tryJavaFXThumbnail(file, future);
 
-                // Add timeout fallback to placeholder (1.5 seconds - balance between speed and
-                // quality)
-                thumbnailExecutor.submit(() -> {
-                    try {
-                        Thread.sleep(1500);
-                        if (!future.isDone()) {
-
-                            Image placeholder = createPlaceholderImage();
-                            future.complete(placeholder);
-                            // Don't cache placeholder - will be retried on refresh
+                    // Add timeout fallback to placeholder (1.5 seconds - balance between speed and
+                    // quality)
+                    thumbnailExecutor.submit(() -> {
+                        try {
+                            Thread.sleep(1500);
+                            if (!future.isDone()) {
+                                Image placeholder = createPlaceholderImage();
+                                future.complete(placeholder);
+                                // Don't cache placeholder - will be retried on refresh
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        } catch (Exception e) {
+                            if (!future.isDone()) {
+                                future.complete(createPlaceholderImage());
+                            }
                         }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } catch (Exception e) {
-                        if (!future.isDone()) {
-                            future.complete(createPlaceholderImage());
-                        }
-                    }
-                    // Note: Semaphore released in whenComplete callback
-                });
+                        // Note: Semaphore released in whenComplete callback
+                    });
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 future.complete(createPlaceholderImage());
             } catch (Exception e) {
-
                 // Ensure future is completed even on unexpected errors
                 if (!future.isDone()) {
                     future.complete(createPlaceholderImage());
@@ -176,6 +197,86 @@ public class ThumbnailGenerator {
         // Return null instead of creating a placeholder image
         // The UI will display "No thumbnail generated" text
         return null;
+    }
+
+    /**
+     * Try to generate thumbnail using FFmpeg (background thread only)
+     * Must be called from thumbnailExecutor, never from Platform.runLater
+     * 
+     * @param videoFile The video file to generate thumbnail from
+     * @param future The CompletableFuture to complete with the thumbnail
+     * @return true if FFmpeg succeeded, false if it failed (caller should try JavaFX fallback)
+     */
+    private static boolean tryFFmpegThumbnail(File videoFile, CompletableFuture<Image> future) {
+        // Generate temp file path using hashCode to avoid path character issues
+        String tempDir = System.getProperty("java.io.tmpdir");
+        String outputPath = tempDir + File.separator + "pixz_thumb_" + 
+            videoFile.getName().hashCode() + ".jpg";
+        File outputFile = new File(outputPath);
+
+        try {
+            // Build FFmpeg command: extract frame at 1 second
+            ProcessBuilder pb = new ProcessBuilder(
+                FFMPEG_COMMAND,
+                "-y",                           // Overwrite output file
+                "-loglevel", "error",           // Only show errors
+                "-i", videoFile.getAbsolutePath(), // Input file
+                "-ss", "00:00:01",              // Seek to 1 second
+                "-vframes", "1",                // Extract 1 frame
+                outputPath                      // Output file
+            );
+            pb.redirectErrorStream(true);
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+
+            // Start process
+            Process process = pb.start();
+
+            // Wait with timeout (8 seconds)
+            boolean completed = process.waitFor(8, TimeUnit.SECONDS);
+            
+            if (!completed) {
+                // Timeout - kill process
+                process.destroyForcibly();
+                outputFile.delete();
+                return false;
+            }
+
+            // Check exit code and output file
+            if (process.exitValue() == 0 && outputFile.exists() && outputFile.length() > 0) {
+                // Load image from temp file (Image constructor is thread-safe)
+                Image thumbnail = new Image(outputFile.toURI().toString());
+                
+                // Delete temp file
+                outputFile.delete();
+                
+                // Check if image loaded successfully
+                if (!thumbnail.isError() && thumbnail.getWidth() > 0 && thumbnail.getHeight() > 0) {
+                    // Complete future directly from background thread
+                    future.complete(thumbnail);
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                // FFmpeg failed
+                outputFile.delete();
+                return false;
+            }
+
+        } catch (IOException e) {
+            // FFmpeg not found or can't start - this shouldn't happen due to FFMPEG_AVAILABLE check
+            // but handle gracefully
+            outputFile.delete();
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            outputFile.delete();
+            return false;
+        } catch (Exception e) {
+            // Any other exception - fallback to JavaFX
+            outputFile.delete();
+            return false;
+        }
     }
 
     /**
