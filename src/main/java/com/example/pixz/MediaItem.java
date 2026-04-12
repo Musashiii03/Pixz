@@ -16,6 +16,7 @@ public class MediaItem {
     private int width;
     private int height;
     private boolean isFavorite;
+    private double lastPlaybackPositionSeconds = 0.0;
 
     public enum MediaType {
         IMAGE, VIDEO
@@ -82,5 +83,25 @@ public class MediaItem {
 
     public void setFavorite(boolean favorite) {
         this.isFavorite = favorite;
+    }
+
+    /**
+     * Get the last playback position in seconds for video files.
+     * Used to resume playback from where the user left off.
+     * 
+     * @return Last playback position in seconds (0.0 if never played or for images)
+     */
+    public double getLastPlaybackPosition() {
+        return lastPlaybackPositionSeconds;
+    }
+
+    /**
+     * Set the last playback position in seconds for video files.
+     * Should be called when navigating away from a video or closing the viewer.
+     * 
+     * @param seconds Playback position in seconds
+     */
+    public void setLastPlaybackPosition(double seconds) {
+        this.lastPlaybackPositionSeconds = seconds;
     }
 }

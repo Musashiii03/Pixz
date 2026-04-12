@@ -321,3 +321,53 @@
 .mac-window-button:hover {
     -fx-text-fill: #000000;
 }
+
+/* === Video UI Styles === */
+
+/* === Seek Slider (video progress bar) === */
+.seek-slider .track {
+    -fx-background-color: #45475a;
+    -fx-pref-height: 4px;
+}
+.seek-slider .thumb {
+    -fx-background-color: #89b4fa;
+    -fx-background-radius: 50%;
+    -fx-pref-width: 12px;
+    -fx-pref-height: 12px;
+}
+.seek-slider:hover .thumb {
+    -fx-pref-width: 16px;
+    -fx-pref-height: 16px;
+}
+.seek-slider .colored-track-start {
+    -fx-background-color: #89b4fa;
+}
+
+/* === Volume Slider === */
+.volume-slider .track {
+    -fx-background-color: #45475a;
+    -fx-pref-height: 3px;
+}
+.volume-slider .thumb {
+    -fx-background-color: #cdd6f4;
+    -fx-background-radius: 50%;
+    -fx-pref-width: 10px;
+    -fx-pref-height: 10px;
+}
+.volume-slider .colored-track-start {
+    -fx-background-color: #89b4fa;
+}
+
+/* === Loading Spinner === */
+.loading-indicator .progress-indicator-canvas {
+    -fx-progress-color: #89b4fa;
+}
+
+/* === Buffering label overlay === */
+.buffering-label {
+    -fx-text-fill: #cdd6f4;
+    -fx-font-size: 14px;
+    -fx-background-color: rgba(0, 0, 0, 0.7);
+    -fx-background-radius: 6;
+    -fx-padding: 8 16;
+}

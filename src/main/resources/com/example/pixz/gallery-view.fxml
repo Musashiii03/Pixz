@@ -69,11 +69,11 @@
                             <!-- Settings Button -->
                             <Button fx:id="settingsButton" text="⚙" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 16px; -fx-padding: 6; -fx-cursor: hand; -fx-background-radius: 6; -fx-min-width: 32; -fx-min-height: 32;"/>
                             
-                            <!-- macOS-style Window Controls -->
-                            <HBox spacing="8" alignment="CENTER" style="-fx-padding: 0 5 0 10;">
-                                <Button fx:id="macCloseButton" style="-fx-background-color: #ff5f57; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0;"/>
-                                <Button fx:id="macMaximizeButton" style="-fx-background-color: #ffbd2e; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0;"/>
-                                <Button fx:id="macMinimizeButton" style="-fx-background-color: #28c840; -fx-min-width: 14; -fx-max-width: 14; -fx-min-height: 14; -fx-max-height: 14; -fx-background-radius: 50%; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0;"/>
+                            <!-- Windows-style Window Controls -->
+                            <HBox spacing="0" alignment="CENTER" style="-fx-padding: 0 5 0 15;">
+                                <Button fx:id="macMinimizeButton" text="─" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-min-width: 46; -fx-min-height: 32; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-background-radius: 0;"/>
+                                <Button fx:id="macMaximizeButton" text="◱" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-min-width: 46; -fx-min-height: 32; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-background-radius: 0;"/>
+                                <Button fx:id="macCloseButton" text="✕" style="-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 14px; -fx-min-width: 46; -fx-min-height: 32; -fx-cursor: hand; -fx-border-width: 0; -fx-padding: 0; -fx-background-radius: 0;"/>
                             </HBox>
                         </HBox>
                     </HBox>
