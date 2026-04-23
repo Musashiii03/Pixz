@@ -285,9 +285,21 @@ public class NavigationManager {
                     MediaView mediaView = new MediaView();
                     mediaView.setMediaPlayer(mediaController.getMediaPlayer());
                     mediaView.setPreserveRatio(true);
-                    // Bind to fullscreenViewer for proper sizing
-                    mediaView.fitWidthProperty().bind(fullscreenViewer.widthProperty());
-                    mediaView.fitHeightProperty().bind(fullscreenViewer.heightProperty());
+                    
+                    // Apply rotation from video metadata
+                    int rotation = MediaMetadataUtils.getRotation(videoFile);
+                    
+                    // For 90° or 270° rotation, swap width/height bindings
+                    if (rotation == 90 || rotation == 270) {
+                        mediaView.fitWidthProperty().bind(fullscreenViewer.heightProperty());
+                        mediaView.fitHeightProperty().bind(fullscreenViewer.widthProperty());
+                    } else {
+                        mediaView.fitWidthProperty().bind(fullscreenViewer.widthProperty());
+                        mediaView.fitHeightProperty().bind(fullscreenViewer.heightProperty());
+                    }
+                    
+                    mediaView.setRotate(rotation);
+                    currentRotation = rotation; // Track initial rotation
 
                     // Create overlay for buffering label
                     StackPane overlay = new StackPane();
@@ -621,6 +633,24 @@ public class NavigationManager {
         if (currentRotatableContent != null) {
             currentRotation = (currentRotation + 90) % 360;
             currentRotatableContent.setRotate(currentRotation);
+            
+            // If it's a MediaView (video), swap dimension bindings for 90/270 rotation
+            if (currentRotatableContent instanceof MediaView) {
+                MediaView mediaView = (MediaView) currentRotatableContent;
+                
+                // Unbind first
+                mediaView.fitWidthProperty().unbind();
+                mediaView.fitHeightProperty().unbind();
+                
+                // Rebind based on rotation
+                if (currentRotation == 90 || currentRotation == 270) {
+                    mediaView.fitWidthProperty().bind(fullscreenViewer.heightProperty());
+                    mediaView.fitHeightProperty().bind(fullscreenViewer.widthProperty());
+                } else {
+                    mediaView.fitWidthProperty().bind(fullscreenViewer.widthProperty());
+                    mediaView.fitHeightProperty().bind(fullscreenViewer.heightProperty());
+                }
+            }
         }
     }
     
