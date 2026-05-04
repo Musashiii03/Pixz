@@ -533,37 +533,40 @@ public class VideoControlsBar {
         // Get current visual rotation (from manual rotation, not metadata)
         double currentVisualRotation = mediaView.getRotate();
         
-        // For sizing calculation, use the ACTUAL stored dimensions (already rotated in file)
-        // Don't swap dimensions based on metadata rotation
-        double calcW = mediaW;
-        double calcH = mediaH;
+        // Use actual stored dimensions (video file dimensions)
+        double calcMediaW = mediaW;
+        double calcMediaH = mediaH;
         
-        // Only swap dimensions if there's MANUAL visual rotation applied
+        // For manual rotation: swap CONTAINER dimensions, not media dimensions
+        // This is because the MediaView is rotated, so it sees the container as rotated
+        double calcContainerW = containerW;
+        double calcContainerH = containerH;
+        
         boolean manuallyRotated = (((int)currentVisualRotation) % 180 != 0);
         if (manuallyRotated) {
-            double temp = calcW;
-            calcW = calcH;
-            calcH = temp;
+            // Swap container dimensions
+            double temp = calcContainerW;
+            calcContainerW = calcContainerH;
+            calcContainerH = temp;
         }
         
         // CONTAIN: fit inside container, no cropping
-        double scaleX = containerW / calcW;
-        double scaleY = containerH / calcH;
+        double scaleX = calcContainerW / calcMediaW;
+        double scaleY = calcContainerH / calcMediaH;
         double scale = Math.min(scaleX, scaleY);
         
         // Calculate the actual display size
-        double displayW = calcW * scale;
-        double displayH = calcH * scale;
+        double displayW = calcMediaW * scale;
+        double displayH = calcMediaH * scale;
         
         // Set BOTH dimensions explicitly for contain behavior
         mediaView.setFitWidth(displayW);
         mediaView.setFitHeight(displayH);
         
-        System.out.println("[updateVideoFit] Original media: " + mediaW + "x" + mediaH + 
-                         ", Metadata rotation: " + rotation +
+        System.out.println("[updateVideoFit] Media: " + mediaW + "x" + mediaH + 
                          ", Visual rotation: " + currentVisualRotation +
-                         ", Calc dimensions: " + calcW + "x" + calcH +
-                         ", Container: " + containerW + "x" + containerH + 
+                         ", Container (original): " + containerW + "x" + containerH +
+                         ", Container (calc): " + calcContainerW + "x" + calcContainerH +
                          ", Scale: " + scale +
                          ", Display size: " + displayW + "x" + displayH);
     }
