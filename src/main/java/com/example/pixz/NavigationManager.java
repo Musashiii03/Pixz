@@ -166,8 +166,14 @@ public class NavigationManager {
         StackPane imageContainer = new StackPane();
         imageContainer.setStyle("-fx-background-color: black;");
         imageContainer.setAlignment(Pos.CENTER);
-        imageContainer.setMaxWidth(Double.MAX_VALUE);
-        imageContainer.setMaxHeight(Double.MAX_VALUE);
+        
+        // CRITICAL: Prevent container from growing with rotated content
+        imageContainer.setMinSize(0, 0);
+        imageContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        
+        // CRITICAL: Bind to fullscreenViewer dimensions
+        imageContainer.prefWidthProperty().bind(fullscreenViewer.widthProperty());
+        imageContainer.prefHeightProperty().bind(fullscreenViewer.heightProperty());
 
         ImageView imageView = new ImageView();
         imageView.setPreserveRatio(true);
@@ -190,25 +196,25 @@ public class NavigationManager {
             image.progressProperty().addListener((obs, oldProgress, newProgress) -> {
                 if (newProgress.doubleValue() >= 1.0) {
                     Platform.runLater(() -> {
-                        updateImageFit(imageView, image, imageContainer, initialRotation);
+                        updateImageFit(imageView, image, imageContainer);
                     });
                 }
             });
             
             // If image is already loaded, apply sizing immediately
             if (image.getProgress() >= 1.0) {
-                updateImageFit(imageView, image, imageContainer, initialRotation);
+                updateImageFit(imageView, image, imageContainer);
             }
             
             // Listen for container size changes
             imageContainer.widthProperty().addListener((obs, oldVal, newVal) -> {
                 if (image.getProgress() >= 1.0) {
-                    updateImageFit(imageView, image, imageContainer, (int)currentRotation);
+                    updateImageFit(imageView, image, imageContainer);
                 }
             });
             imageContainer.heightProperty().addListener((obs, oldVal, newVal) -> {
                 if (image.getProgress() >= 1.0) {
-                    updateImageFit(imageView, image, imageContainer, (int)currentRotation);
+                    updateImageFit(imageView, image, imageContainer);
                 }
             });
             
@@ -714,9 +720,8 @@ public class NavigationManager {
      * @param imageView The ImageView to update
      * @param image The loaded image
      * @param container The container holding the image
-     * @param rotation Current rotation angle (0, 90, 180, 270)
      */
-    private void updateImageFit(ImageView imageView, Image image, StackPane container, int rotation) {
+    private void updateImageFit(ImageView imageView, Image image, StackPane container) {
         double containerW = container.getWidth();
         double containerH = container.getHeight();
         
@@ -727,29 +732,45 @@ public class NavigationManager {
         
         if (mediaW <= 0 || mediaH <= 0) return;
         
-        // Apply rotation to dimensions
-        boolean rotated = (rotation % 180 != 0);
-        if (rotated) {
-            double temp = mediaW;
-            mediaW = mediaH;
-            mediaH = temp;
+        // Get current visual rotation
+        double currentVisualRotation = imageView.getRotate();
+        
+        // Use actual image dimensions
+        double calcMediaW = mediaW;
+        double calcMediaH = mediaH;
+        
+        // For manual rotation: swap CONTAINER dimensions, not media dimensions
+        // This is because the ImageView is rotated, so it sees the container as rotated
+        double calcContainerW = containerW;
+        double calcContainerH = containerH;
+        
+        boolean manuallyRotated = (((int)currentVisualRotation) % 180 != 0);
+        if (manuallyRotated) {
+            // Swap container dimensions
+            double temp = calcContainerW;
+            calcContainerW = calcContainerH;
+            calcContainerH = temp;
         }
         
         // CONTAIN: fit inside container, no cropping
-        double scaleX = containerW / mediaW;
-        double scaleY = containerH / mediaH;
+        double scaleX = calcContainerW / calcMediaW;
+        double scaleY = calcContainerH / calcMediaH;
         double scale = Math.min(scaleX, scaleY);
         
-        // Set only ONE dimension, let preserveRatio handle the other
-        if (scaleX < scaleY) {
-            // Width is the limiting factor
-            imageView.setFitWidth(mediaW * scale);
-            imageView.setFitHeight(-1);
-        } else {
-            // Height is the limiting factor
-            imageView.setFitWidth(-1);
-            imageView.setFitHeight(mediaH * scale);
-        }
+        // Calculate the actual display size
+        double displayW = calcMediaW * scale;
+        double displayH = calcMediaH * scale;
+        
+        // Set BOTH dimensions explicitly
+        imageView.setFitWidth(displayW);
+        imageView.setFitHeight(displayH);
+        
+        System.out.println("[updateImageFit] Image: " + mediaW + "x" + mediaH + 
+                         ", Visual rotation: " + currentVisualRotation +
+                         ", Container (original): " + containerW + "x" + containerH +
+                         ", Container (calc): " + calcContainerW + "x" + calcContainerH +
+                         ", Scale: " + scale +
+                         ", Display size: " + displayW + "x" + displayH);
     }
 
     private void rotateCurrentContainer() {
@@ -764,7 +785,7 @@ public class NavigationManager {
                 ImageView imageView = (ImageView) currentRotatableContent;
                 Image image = imageView.getImage();
                 if (image != null && currentContainer != null) {
-                    updateImageFit(imageView, image, currentContainer, (int)currentRotation);
+                    updateImageFit(imageView, image, currentContainer);
                 }
             } else if (currentRotatableContent instanceof MediaView) {
                 // MediaView rotation - apply visual rotation for manual rotation only
