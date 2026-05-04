@@ -16,6 +16,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -161,20 +162,56 @@ public class NavigationManager {
         // Clear viewer
         fullscreenViewer.getChildren().clear();
 
-        // Build image container
+        // Build image container with proper centering
         StackPane imageContainer = new StackPane();
         imageContainer.setStyle("-fx-background-color: black;");
         imageContainer.setAlignment(Pos.CENTER);
+        imageContainer.setMaxWidth(Double.MAX_VALUE);
+        imageContainer.setMaxHeight(Double.MAX_VALUE);
 
         ImageView imageView = new ImageView();
         imageView.setPreserveRatio(true);
-        imageView.fitWidthProperty().bind(fullscreenViewer.widthProperty());
-        imageView.fitHeightProperty().bind(fullscreenViewer.heightProperty());
-
+        imageView.setSmooth(true);
+        imageView.setCache(true);
+        
         // Load image
         try {
             Image image = new Image(item.getFile().toURI().toString(), true);
             imageView.setImage(image);
+            
+            // Get initial rotation from metadata
+            int initialRotation = MediaMetadataUtils.getRotation(item.getFile());
+            currentRotation = initialRotation;
+            
+            // Apply rotation BEFORE sizing
+            imageView.setRotate(initialRotation);
+            
+            // Apply smart sizing once image is loaded
+            image.progressProperty().addListener((obs, oldProgress, newProgress) -> {
+                if (newProgress.doubleValue() >= 1.0) {
+                    Platform.runLater(() -> {
+                        updateImageFit(imageView, image, imageContainer, initialRotation);
+                    });
+                }
+            });
+            
+            // If image is already loaded, apply sizing immediately
+            if (image.getProgress() >= 1.0) {
+                updateImageFit(imageView, image, imageContainer, initialRotation);
+            }
+            
+            // Listen for container size changes
+            imageContainer.widthProperty().addListener((obs, oldVal, newVal) -> {
+                if (image.getProgress() >= 1.0) {
+                    updateImageFit(imageView, image, imageContainer, (int)currentRotation);
+                }
+            });
+            imageContainer.heightProperty().addListener((obs, oldVal, newVal) -> {
+                if (image.getProgress() >= 1.0) {
+                    updateImageFit(imageView, image, imageContainer, (int)currentRotation);
+                }
+            });
+            
         } catch (Exception e) {
             Label errorLabel = new Label("Cannot load image:\n" + e.getMessage());
             errorLabel.setTextFill(Color.WHITE);
@@ -277,29 +314,63 @@ public class NavigationManager {
                     StackPane videoContainer = new StackPane();
                     videoContainer.setStyle("-fx-background-color: black;");
                     videoContainer.setAlignment(Pos.CENTER);
-                    // Make container fill the parent
+                    
+                    // CRITICAL: Prevent container from growing with rotated content
+                    videoContainer.setMinSize(0, 0);
+                    videoContainer.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+                    
+                    // CRITICAL FIX: Bind to fullscreenViewer dimensions
                     videoContainer.prefWidthProperty().bind(fullscreenViewer.widthProperty());
                     videoContainer.prefHeightProperty().bind(fullscreenViewer.heightProperty());
 
-                    // Create MediaView with proper size binding to prevent zoom/crop
+                    // Create MediaView directly (no extra container layer)
                     MediaView mediaView = new MediaView();
                     mediaView.setMediaPlayer(mediaController.getMediaPlayer());
                     mediaView.setPreserveRatio(true);
+                    mediaView.setSmooth(true);
                     
-                    // Apply rotation from video metadata
+                    // Ensure viewport shows full video (no cropping)
+                    mediaView.setViewport(null);
+                    
+                    // Get rotation from video metadata
                     int rotation = MediaMetadataUtils.getRotation(videoFile);
-                    
-                    // For 90° or 270° rotation, swap width/height bindings
-                    if (rotation == 90 || rotation == 270) {
-                        mediaView.fitWidthProperty().bind(fullscreenViewer.heightProperty());
-                        mediaView.fitHeightProperty().bind(fullscreenViewer.widthProperty());
-                    } else {
-                        mediaView.fitWidthProperty().bind(fullscreenViewer.widthProperty());
-                        mediaView.fitHeightProperty().bind(fullscreenViewer.heightProperty());
-                    }
-                    
-                    mediaView.setRotate(rotation);
                     currentRotation = rotation; // Track initial rotation
+                    
+                    // Create wrapper for centering (NO rotation applied)
+                    // Videos with rotation metadata are already stored rotated in the file
+                    StackPane mediaWrapper = new StackPane(mediaView);
+                    mediaWrapper.setAlignment(Pos.CENTER);
+                    mediaWrapper.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+                    
+                    // Apply smart sizing once video dimensions are available
+                    MediaPlayer player = mediaController.getMediaPlayer();
+                    if (player != null && player.getMedia() != null) {
+                        // Listen for when video dimensions become available
+                        player.getMedia().widthProperty().addListener((obs, oldWidth, newWidth) -> {
+                            if (newWidth.intValue() > 0 && player.getMedia().getHeight() > 0) {
+                                Platform.runLater(() -> {
+                                    // Wait for container to be laid out
+                                    if (videoContainer.getWidth() > 0 && videoContainer.getHeight() > 0) {
+                                        double containerW = videoContainer.getWidth();
+                                        double containerH = videoContainer.getHeight();
+                                        controlsBar.updateVideoFit(mediaView, containerW, containerH, rotation);
+                                    }
+                                });
+                            }
+                        });
+                        
+                        // Wait for container to be laid out before sizing
+                        // Use layoutBounds listener to get actual dimensions after layout
+                        videoContainer.layoutBoundsProperty().addListener((obs, oldBounds, newBounds) -> {
+                            double w = newBounds.getWidth();
+                            double h = newBounds.getHeight();
+                            
+                            if (w > 0 && h > 0 && player != null && player.getMedia() != null &&
+                                player.getMedia().getWidth() > 0 && player.getMedia().getHeight() > 0) {
+                                controlsBar.updateVideoFit(mediaView, w, h, (int)currentRotation);
+                            }
+                        });
+                    }
 
                     // Create overlay for buffering label
                     StackPane overlay = new StackPane();
@@ -307,9 +378,16 @@ public class NavigationManager {
                     overlay.setPickOnBounds(false);
                     overlay.getChildren().add(controlsBar.getBufferingLabel());
 
-                    videoContainer.getChildren().addAll(mediaView, overlay, controlsBar.getRoot());
+                    // Add directly to videoContainer (no extra mediaContainer layer)
+                    videoContainer.getChildren().addAll(mediaWrapper, overlay, controlsBar.getRoot());
+                    
+                    // Ensure proper alignment and layering
+                    StackPane.setAlignment(mediaWrapper, Pos.CENTER);
+                    StackPane.setAlignment(controlsBar.getRoot(), Pos.BOTTOM_CENTER);
+                    StackPane.setAlignment(overlay, Pos.CENTER);
+                    
                     currentContainer = videoContainer;
-                    currentRotatableContent = mediaView; // Track MediaView for rotation
+                    currentRotatableContent = mediaView; // Track MediaView for manual rotation
 
                     fullscreenViewer.getChildren().add(videoContainer);
                     
@@ -629,27 +707,72 @@ public class NavigationManager {
         }
     }
 
+    /**
+     * Update image fit based on container size and rotation.
+     * Implements contain behavior (always fully visible, no cropping).
+     * 
+     * @param imageView The ImageView to update
+     * @param image The loaded image
+     * @param container The container holding the image
+     * @param rotation Current rotation angle (0, 90, 180, 270)
+     */
+    private void updateImageFit(ImageView imageView, Image image, StackPane container, int rotation) {
+        double containerW = container.getWidth();
+        double containerH = container.getHeight();
+        
+        if (containerW <= 0 || containerH <= 0) return;
+        
+        double mediaW = image.getWidth();
+        double mediaH = image.getHeight();
+        
+        if (mediaW <= 0 || mediaH <= 0) return;
+        
+        // Apply rotation to dimensions
+        boolean rotated = (rotation % 180 != 0);
+        if (rotated) {
+            double temp = mediaW;
+            mediaW = mediaH;
+            mediaH = temp;
+        }
+        
+        // CONTAIN: fit inside container, no cropping
+        double scaleX = containerW / mediaW;
+        double scaleY = containerH / mediaH;
+        double scale = Math.min(scaleX, scaleY);
+        
+        // Set only ONE dimension, let preserveRatio handle the other
+        if (scaleX < scaleY) {
+            // Width is the limiting factor
+            imageView.setFitWidth(mediaW * scale);
+            imageView.setFitHeight(-1);
+        } else {
+            // Height is the limiting factor
+            imageView.setFitWidth(-1);
+            imageView.setFitHeight(mediaH * scale);
+        }
+    }
+
     private void rotateCurrentContainer() {
         if (currentRotatableContent != null) {
             currentRotation = (currentRotation + 90) % 360;
+            
+            // CRITICAL: Apply rotation FIRST
             currentRotatableContent.setRotate(currentRotation);
             
-            // If it's a MediaView (video), swap dimension bindings for 90/270 rotation
-            if (currentRotatableContent instanceof MediaView) {
-                MediaView mediaView = (MediaView) currentRotatableContent;
-                
-                // Unbind first
-                mediaView.fitWidthProperty().unbind();
-                mediaView.fitHeightProperty().unbind();
-                
-                // Rebind based on rotation
-                if (currentRotation == 90 || currentRotation == 270) {
-                    mediaView.fitWidthProperty().bind(fullscreenViewer.heightProperty());
-                    mediaView.fitHeightProperty().bind(fullscreenViewer.widthProperty());
-                } else {
-                    mediaView.fitWidthProperty().bind(fullscreenViewer.widthProperty());
-                    mediaView.fitHeightProperty().bind(fullscreenViewer.heightProperty());
+            // THEN recalculate layout based on new rotation
+            if (currentRotatableContent instanceof ImageView) {
+                ImageView imageView = (ImageView) currentRotatableContent;
+                Image image = imageView.getImage();
+                if (image != null && currentContainer != null) {
+                    updateImageFit(imageView, image, currentContainer, (int)currentRotation);
                 }
+            } else if (currentRotatableContent instanceof MediaView) {
+                // MediaView rotation - apply visual rotation for manual rotation only
+                MediaView mediaView = (MediaView) currentRotatableContent;
+                double containerW = currentContainer.getWidth();
+                double containerH = currentContainer.getHeight();
+                controlsBar.setRotation((int)currentRotation);
+                controlsBar.updateVideoFit(mediaView, containerW, containerH, (int)currentRotation);
             }
         }
     }
