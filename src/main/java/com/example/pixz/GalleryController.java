@@ -1257,7 +1257,7 @@ public class GalleryController {
         Pane videoContainer = new Pane();
 
         mediaController = new MediaController(mediaView);
-        controlsBar = new VideoControlsBar(mediaController, mediaView, videoContainer);
+        controlsBar = new VideoControlsBar(mediaController);
         navigationManager = new NavigationManager(
             displayedItems,
             fullscreenViewer,
@@ -1321,148 +1321,9 @@ public class GalleryController {
     }
 
     private void setupImageViewer(StackPane container, MediaItem item, HBox topBar, int initialRotation) {
-        BorderPane layout = new BorderPane();
-        layout.setStyle("-fx-background-color: #000000;");
-
-        // Load full-quality image for fullscreen viewing
-        Image image = new Image(item.getFile().toURI().toString());
-        ImageView imageView = new ImageView(image);
-        imageView.setPreserveRatio(true);
-        imageView.setSmooth(true);
-
-        // Create a constrained container using Pane
-        Pane imageContainer = new Pane() {
-            @Override
-            protected void layoutChildren() {
-                super.layoutChildren();
-                double containerWidth = getWidth();
-                double containerHeight = getHeight();
-
-                if (containerWidth > 0 && containerHeight > 0) {
-                    double imageWidth = image.getWidth();
-                    double imageHeight = image.getHeight();
-
-                    // Check if rotated 90 or 270 degrees
-                    double currentRotation = getRotate();
-                    boolean isRotated90 = (Math.abs(currentRotation % 180) == 90);
-
-                    if (isRotated90) {
-                        // Swap dimensions for aspect ratio calculation
-                        double temp = imageWidth;
-                        imageWidth = imageHeight;
-                        imageHeight = temp;
-                    }
-
-                    double imageRatio = imageWidth / imageHeight;
-                    double containerRatio = containerWidth / containerHeight;
-
-                    double newWidth, newHeight;
-
-                    if (imageRatio > containerRatio) {
-                        // Image is wider - fit to width
-                        newWidth = containerWidth;
-                        newHeight = containerWidth / imageRatio;
-                    } else {
-                        // Image is taller - fit to height
-                        newHeight = containerHeight;
-                        newWidth = containerHeight * imageRatio;
-                    }
-
-                    if (isRotated90) {
-                        // If rotated, we need to size the ImageView such that when rotated it fits
-                        // The logic above calculated the BOUNDING BOX size of the rotated image
-                        // So for the actual ImageView:
-                        // width -> newHeight
-                        // height -> newWidth
-                        imageView.setFitWidth(newHeight);
-                        imageView.setFitHeight(newWidth);
-                    } else {
-                        imageView.setFitWidth(newWidth);
-                        imageView.setFitHeight(newHeight);
-                    }
-
-                    // Center the image
-                    double x = (containerWidth - imageView.getFitWidth()) / 2;
-                    double y = (containerHeight - imageView.getFitHeight()) / 2;
-                    imageView.relocate(x, y);
-                }
-            }
-        };
-        imageContainer.getChildren().add(imageView);
-        imageContainer.setStyle("-fx-background-color: #000000;");
-
-        // Use StackPane to overlay top bar on image
-        StackPane imageStack = new StackPane();
-        imageStack.getChildren().add(imageContainer);
-
-        // Add top bar overlay
-        StackPane.setAlignment(topBar, Pos.TOP_CENTER);
-        imageStack.getChildren().add(topBar);
-
-        layout.setCenter(imageStack);
-        container.getChildren().add(layout);
-
-        // Auto-hide top bar with fade in/out (similar to video viewer)
-        topBar.setOpacity(1.0); // Start visible
-
-        javafx.animation.FadeTransition fadeOutTop = new javafx.animation.FadeTransition(
-                javafx.util.Duration.millis(500), topBar);
-        fadeOutTop.setFromValue(1.0);
-        fadeOutTop.setToValue(0.0);
-        fadeOutTop.setOnFinished(ev -> {
-            // Hide cursor when bars are hidden
-            imageStack.setCursor(javafx.scene.Cursor.NONE);
-            topBar.setMouseTransparent(true);
-        });
-
-        javafx.animation.FadeTransition fadeInTop = new javafx.animation.FadeTransition(
-                javafx.util.Duration.millis(200), topBar);
-        fadeInTop.setFromValue(0.0);
-        fadeInTop.setToValue(1.0);
-        fadeInTop.setOnFinished(ev -> {
-            // Show cursor when bars are visible
-            imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
-            topBar.setMouseTransparent(false);
-        });
-
-        javafx.animation.PauseTransition idleTimer = new javafx.animation.PauseTransition(
-                javafx.util.Duration.seconds(3));
-        idleTimer.setOnFinished(ev -> fadeOutTop.play());
-
-        // Only respond to actual mouse movement
-        imageStack.setOnMouseMoved(e -> {
-            if (topBar.getOpacity() < 1.0) {
-                fadeInTop.play();
-                topBar.setMouseTransparent(false);
-            }
-            topBar.setOpacity(1.0);
-            imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
-            idleTimer.playFromStart();
-        });
-
-        // Re-enable on mouse interaction
-        imageStack.setOnMouseEntered(e -> {
-            // Mouse entered
-        });
-
-        imageStack.setOnMouseDragged(e -> {
-            if (topBar.getOpacity() < 1.0) {
-                fadeInTop.play();
-                topBar.setMouseTransparent(false);
-            }
-            topBar.setOpacity(1.0);
-            imageStack.setCursor(javafx.scene.Cursor.DEFAULT);
-            idleTimer.playFromStart();
-        });
-
-        // Start timer initially
-        idleTimer.play();
-
-        // Set initial rotation
-        imageContainer.setRotate(initialRotation);
-
-        // Store reference to imageContainer for rotation
-        container.setUserData(imageContainer);
+        // This method is no longer used - image viewing is now handled by NavigationManager
+        // with unified rendering logic. Keeping for backwards compatibility but it should
+        // not be called in the current architecture.
     }
 
     // REMOVED: setupVideoViewer() - replaced by MediaController + VideoControlsBar + NavigationManager

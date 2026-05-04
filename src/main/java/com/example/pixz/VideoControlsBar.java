@@ -11,7 +11,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -27,7 +26,6 @@ import javafx.util.Duration;
 public class VideoControlsBar {
 
     private final MediaController mediaController;
-    private final MediaView mediaView;
     private final VBox root;
     
     // Controls
@@ -56,15 +54,12 @@ public class VideoControlsBar {
     
     // Auto-hide
     private PauseTransition idleTimer;
+    
+    // Current rotation for sizing calculations
+    private int currentRotation = 0;
 
-    public VideoControlsBar(MediaController mediaController, MediaView mediaView, Pane videoContainer) {
+    public VideoControlsBar(MediaController mediaController) {
         this.mediaController = mediaController;
-        this.mediaView = mediaView;
-        
-        // FIX #5: Bind MediaView size to container — preserves ratio, prevents stretching
-        mediaView.setPreserveRatio(true);
-        mediaView.fitWidthProperty().bind(videoContainer.widthProperty());
-        mediaView.fitHeightProperty().bind(videoContainer.heightProperty());
         
         this.root = buildUI();
         setupAutoHide();
@@ -221,6 +216,9 @@ public class VideoControlsBar {
     public void bindToPlayer() {
         MediaPlayer player = mediaController.getMediaPlayer();
         if (player == null) return;
+        
+        // Enable loop by default for videos
+        player.setCycleCount(MediaPlayer.INDEFINITE);
         
         // Update play/pause button
         player.statusProperty().addListener((obs, oldStatus, newStatus) -> 
@@ -493,5 +491,88 @@ public class VideoControlsBar {
         String currentStr = formatTime(time);
         String totalStr = formatTime(totalDuration);
         timeLabel.setText(currentStr + " / " + totalStr);
+    }
+    
+    /**
+     * Update video fit based on container size and rotation.
+     * Implements contain behavior (always fully visible, no cropping).
+     * 
+     * IMPORTANT: Videos with rotation metadata are stored rotated in the file.
+     * We only swap dimensions for sizing, but DON'T apply visual rotation.
+     * Visual rotation is only applied for manual user rotation (R key).
+     * 
+     * @param mediaView The actual MediaView being displayed
+     * @param containerW Container width
+     * @param containerH Container height
+     * @param rotation Current rotation angle (0, 90, 180, 270) - for dimension calculation only
+     */
+    public void updateVideoFit(MediaView mediaView, double containerW, double containerH, int rotation) {
+        if (mediaView == null) {
+            return;
+        }
+        
+        if (containerW <= 0 || containerH <= 0) {
+            return;
+        }
+        
+        MediaPlayer player = mediaController.getMediaPlayer();
+        if (player == null || player.getMedia() == null) {
+            return;
+        }
+        
+        double mediaW = player.getMedia().getWidth();
+        double mediaH = player.getMedia().getHeight();
+        
+        if (mediaW <= 0 || mediaH <= 0) {
+            return;
+        }
+        
+        // CRITICAL: Clear viewport to prevent cropping
+        mediaView.setViewport(null);
+        
+        // Get current visual rotation (from manual rotation, not metadata)
+        double currentVisualRotation = mediaView.getRotate();
+        
+        // For sizing calculation, use the ACTUAL stored dimensions (already rotated in file)
+        // Don't swap dimensions based on metadata rotation
+        double calcW = mediaW;
+        double calcH = mediaH;
+        
+        // Only swap dimensions if there's MANUAL visual rotation applied
+        boolean manuallyRotated = (((int)currentVisualRotation) % 180 != 0);
+        if (manuallyRotated) {
+            double temp = calcW;
+            calcW = calcH;
+            calcH = temp;
+        }
+        
+        // CONTAIN: fit inside container, no cropping
+        double scaleX = containerW / calcW;
+        double scaleY = containerH / calcH;
+        double scale = Math.min(scaleX, scaleY);
+        
+        // Calculate the actual display size
+        double displayW = calcW * scale;
+        double displayH = calcH * scale;
+        
+        // Set BOTH dimensions explicitly for contain behavior
+        mediaView.setFitWidth(displayW);
+        mediaView.setFitHeight(displayH);
+        
+        System.out.println("[updateVideoFit] Original media: " + mediaW + "x" + mediaH + 
+                         ", Metadata rotation: " + rotation +
+                         ", Visual rotation: " + currentVisualRotation +
+                         ", Calc dimensions: " + calcW + "x" + calcH +
+                         ", Container: " + containerW + "x" + containerH + 
+                         ", Scale: " + scale +
+                         ", Display size: " + displayW + "x" + displayH);
+    }
+    
+    /**
+     * Set current rotation for sizing calculations.
+     * @param rotation Rotation angle (0, 90, 180, 270)
+     */
+    public void setRotation(int rotation) {
+        this.currentRotation = rotation;
     }
 }
