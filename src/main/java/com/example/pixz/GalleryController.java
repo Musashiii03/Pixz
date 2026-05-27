@@ -1404,15 +1404,64 @@ public class GalleryController {
         Button rotateButton = new Button("↻");
         rotateButton.setStyle(
                 "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
-        rotateButton.setTooltip(new Tooltip("Rotate 90°"));
+        rotateButton.setTooltip(new Tooltip("Rotate 90° (R)"));
         rotateButton.setFocusTraversable(false);
         rotateButton.setOnMouseEntered(e -> rotateButton.setStyle(
                 "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;"));
         rotateButton.setOnMouseExited(e -> rotateButton.setStyle(
                 "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;"));
         rotateButton.setOnAction(e -> rotateAction.run());
+        
+        // Zoom out button
+        Button zoomOutButton = new Button("−");
+        zoomOutButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+        zoomOutButton.setTooltip(new Tooltip("Zoom Out (-)"));
+        zoomOutButton.setFocusTraversable(false);
+        zoomOutButton.setOnMouseEntered(e -> zoomOutButton.setStyle(
+                "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;"));
+        zoomOutButton.setOnMouseExited(e -> zoomOutButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;"));
+        zoomOutButton.setOnAction(e -> {
+            if (navigationManager != null && navigationManager.getCurrentZoomManager() != null) {
+                navigationManager.getCurrentZoomManager().zoomOut();
+            }
+        });
+        
+        // Zoom in button
+        Button zoomInButton = new Button("+");
+        zoomInButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;");
+        zoomInButton.setTooltip(new Tooltip("Zoom In (+)"));
+        zoomInButton.setFocusTraversable(false);
+        zoomInButton.setOnMouseEntered(e -> zoomInButton.setStyle(
+                "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;"));
+        zoomInButton.setOnMouseExited(e -> zoomInButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 20px; -fx-cursor: hand; -fx-padding: 5 10;"));
+        zoomInButton.setOnAction(e -> {
+            if (navigationManager != null && navigationManager.getCurrentZoomManager() != null) {
+                navigationManager.getCurrentZoomManager().zoomIn();
+            }
+        });
+        
+        // Reset zoom button
+        Button resetZoomButton = new Button("⊙");
+        resetZoomButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5 10;");
+        resetZoomButton.setTooltip(new Tooltip("Reset Zoom (0)"));
+        resetZoomButton.setFocusTraversable(false);
+        resetZoomButton.setOnMouseEntered(e -> resetZoomButton.setStyle(
+                "-fx-background-color: #45475a; -fx-text-fill: #cdd6f4; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5 10; -fx-background-radius: 4;"));
+        resetZoomButton.setOnMouseExited(e -> resetZoomButton.setStyle(
+                "-fx-background-color: transparent; -fx-text-fill: #cdd6f4; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 5 10;"));
+        resetZoomButton.setOnAction(e -> {
+            if (navigationManager != null && navigationManager.getCurrentZoomManager() != null) {
+                navigationManager.getCurrentZoomManager().resetZoom();
+            }
+        });
 
-        topBar.getChildren().addAll(closeButton, leftSpacer, filenameLabel, rightSpacer, favoriteButton, rotateButton);
+        topBar.getChildren().addAll(closeButton, leftSpacer, filenameLabel, rightSpacer, 
+                                     zoomOutButton, resetZoomButton, zoomInButton, favoriteButton, rotateButton);
         return topBar;
     }
 

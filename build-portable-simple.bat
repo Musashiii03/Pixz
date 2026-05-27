@@ -24,7 +24,7 @@ if errorlevel 1 (
 echo.
 
 echo [3/3] Creating portable package with jpackage...
-jpackage --type app-image --name Pixz --app-version 1.3.0 --vendor Pixz --dest target\portable --input target --main-jar Pixz-1.3.0.jar --main-class com.example.pixz.Launcher --icon src\main\resources\com\example\pixz\pixz_128x128.ico --java-options "-Dfile.encoding=UTF-8"
+jpackage --type app-image --name Pixz --app-version 1.3.1 --vendor Pixz --dest target\portable --input target --main-jar Pixz-1.3.1.jar --main-class com.example.pixz.Launcher --icon src\main\resources\com\example\pixz\pixz_128x128.ico --java-options "-Dfile.encoding=UTF-8"
 if errorlevel 1 (
     echo ERROR: jpackage failed!
     exit /b 1
