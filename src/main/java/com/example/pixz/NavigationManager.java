@@ -46,6 +46,9 @@ public class NavigationManager {
     private StackPane currentContainer;
     private javafx.scene.Node currentRotatableContent; // ImageView or MediaView
     private double currentRotation = 0;
+    
+    // Zoom manager for current media
+    private ZoomManager currentZoomManager;
 
     public NavigationManager(
             List<MediaItem> displayedItems,
@@ -228,6 +231,12 @@ public class NavigationManager {
         imageContainer.getChildren().add(imageView);
         currentContainer = imageContainer;
         currentRotatableContent = imageView; // Track ImageView for rotation
+        
+        // Setup zoom manager for image
+        if (currentZoomManager != null) {
+            currentZoomManager.cleanup();
+        }
+        currentZoomManager = new ZoomManager(imageView, imageContainer);
 
         // Add to viewer
         fullscreenViewer.getChildren().add(imageContainer);
@@ -394,6 +403,12 @@ public class NavigationManager {
                     
                     currentContainer = videoContainer;
                     currentRotatableContent = mediaView; // Track MediaView for manual rotation
+                    
+                    // Setup zoom manager for video
+                    if (currentZoomManager != null) {
+                        currentZoomManager.cleanup();
+                    }
+                    currentZoomManager = new ZoomManager(mediaView, videoContainer);
 
                     fullscreenViewer.getChildren().add(videoContainer);
                     
@@ -617,6 +632,9 @@ public class NavigationManager {
      * - ESC: Close viewer
      * - SHIFT+N: Navigate next (always)
      * - SHIFT+P: Navigate prev (always)
+     * - PLUS/EQUALS: Zoom in
+     * - MINUS: Zoom out
+     * - 0: Reset zoom
      */
     public void handleKeyPress(KeyCode code, boolean isShiftDown) {
         switch (code) {
@@ -639,6 +657,29 @@ public class NavigationManager {
 
             case R:
                 rotateCurrentContainer();
+                break;
+            
+            case PLUS:
+            case EQUALS:
+                // Zoom in
+                if (currentZoomManager != null) {
+                    currentZoomManager.zoomIn();
+                }
+                break;
+            
+            case MINUS:
+                // Zoom out
+                if (currentZoomManager != null) {
+                    currentZoomManager.zoomOut();
+                }
+                break;
+            
+            case DIGIT0:
+            case NUMPAD0:
+                // Reset zoom
+                if (currentZoomManager != null) {
+                    currentZoomManager.resetZoom();
+                }
                 break;
 
             case RIGHT:
@@ -803,5 +844,12 @@ public class NavigationManager {
      */
     public void rotateContent() {
         rotateCurrentContainer();
+    }
+    
+    /**
+     * Get current zoom manager for UI button access.
+     */
+    public ZoomManager getCurrentZoomManager() {
+        return currentZoomManager;
     }
 }
